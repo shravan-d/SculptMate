@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+checkpoints/
+pifu_model/checkpoints/
+
 # C extensions
 *.so
 
