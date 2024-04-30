@@ -2,7 +2,6 @@ from segment_anything import sam_model_registry, SamPredictor
 import os
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
 import cv2
 import time
 from PIL import Image

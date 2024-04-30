@@ -19,11 +19,13 @@ def create_image_textures(image_path, texture_name):
     ideal_image.scale(128, 128)
     texture = bpy.data.textures.new(name=texture_name, type="IMAGE")
     texture.image = ideal_image
+    texture.extension = 'EXTEND'
     print('Created ', texture_name)
 
 
 class DataStore:
     bpy.types.Scene.input_image_path = bpy.props.StringProperty()
+    bpy.types.Scene.current_texture_name = bpy.props.StringProperty()
     bpy.types.Scene.initialized = bpy.props.BoolProperty(default=False)
 
     @classmethod
@@ -51,7 +53,7 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.operator("tool.filebrowser", text="Open Image")
         if context.scene.input_image_path:
             col = self.layout.box().column()
-            col.template_preview(bpy.data.textures['.inputTexture'])
+            col.template_preview(bpy.data.textures[context.scene.current_texture_name])
             layout.separator()
         layout.operator("tool.generate", text="Generate")
 
@@ -61,8 +63,10 @@ class FileBrowser(DataStore, Operator, ImportHelper):
     bl_label = "Select Image"
 
     def execute(self, context):
-        create_image_textures(self.filepath, '.inputTexture')
+        filename = self.filepath.split('\\')[-1].split('.')[0]
+        create_image_textures(self.filepath, '.'+filename)
         context.scene.input_image_path = self.filepath
+        context.scene.current_texture_name = '.'+filename
 
         return {'FINISHED'}
 
@@ -102,3 +106,6 @@ def unregister():
     bpy.utils.unregister_class(UI_PT_main)
     bpy.utils.unregister_class(FileBrowser)
     bpy.utils.unregister_class(Generate)
+
+
+# check if you can up the resultion
