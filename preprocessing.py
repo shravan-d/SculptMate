@@ -77,8 +77,11 @@ def preprocess_image(img_path, device):
     results = model(input_raw)
     output = results.pandas().xyxy[0]
     objects = output[np.logical_and(output['name'] == 'person', output['confidence'] > 0.8)]
-    bbox = [int(objects.xmin.iloc[0]), int(objects.ymin.iloc[0]), int(objects.xmax.iloc[0]), int(objects.ymax.iloc[0])]
-
+    try:
+        bbox = [int(objects.xmin.iloc[0]), int(objects.ymin.iloc[0]), int(objects.xmax.iloc[0]), int(objects.ymax.iloc[0])]
+    except IndexError:
+        print('Unable to find a person in the image, please try another one')
+        return None, -1
     sam_model = get_sam_model(device)
     sam_predictor = SamPredictor(sam_model)
 

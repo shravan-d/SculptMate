@@ -27,6 +27,7 @@ class DataStore:
     bpy.types.Scene.input_image_path = bpy.props.StringProperty()
     bpy.types.Scene.current_texture_name = bpy.props.StringProperty()
     bpy.types.Scene.initialized = bpy.props.BoolProperty(default=False)
+    bpy.types.Scene.error_msg = bpy.props.StringProperty(default="")
 
     @classmethod
     def poll(cls, context):
@@ -43,7 +44,7 @@ class UI_PT_main(DataStore, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        label_multiline(layout, text="Start by generating a basic human mesh from an image.")
+        label_multiline(layout, text="Generating a human mesh from one image.")
         label_multiline(layout, text="For best results, use full-body images with arms at the sides.")
         layout.separator()
         # label_multiline(layout, text="Think of the vitruvian man as the ideal poser for the model. The closer you are to this pose, the easier it is for the model. Of course, you don't need the extra limbs, but keeping the body parts visually distinct helps.")
@@ -55,6 +56,9 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             col = self.layout.box().column()
             col.template_preview(bpy.data.textures[context.scene.current_texture_name])
             layout.separator()
+        if context.scene.error_msg is not "":
+            label_multiline(layout, text=context.scene.error_msg)
+
         layout.operator("tool.generate", text="Generate")
 
 
@@ -67,6 +71,7 @@ class FileBrowser(DataStore, Operator, ImportHelper):
         create_image_textures(self.filepath, '.'+filename)
         context.scene.input_image_path = self.filepath
         context.scene.current_texture_name = '.'+filename
+        context.scene.error_msg = ""
 
         return {'FINISHED'}
 
@@ -85,6 +90,10 @@ class Generate(DataStore, Operator):
         print('Working on ', img_name)
         t1 = time.time()
         preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, device=device)
+        if preprocessed is None:
+            context.scene.error_msg = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
+            return {'CANCELLED'}
+        
         t2 = time.time()
         print('Preprocessing Time (s):', str(t2 - t1))
         print('Estimate '+ str(0.7*(t2-t1)) + ' seconds remaining')
