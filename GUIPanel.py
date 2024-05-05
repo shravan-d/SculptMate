@@ -5,13 +5,11 @@ from bpy.types import Operator
 import addon_utils
 import torch
 
-from .pifu_model.generate import generate_mesh
+from .generation.generate import generate_mesh
 from .preprocessing import preprocess_image
 from .utils import label_multiline
 import time
 
-# enable plugins
-# addon_utils.enable("io_import_images_as_planes")
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def create_image_textures(image_path, texture_name):

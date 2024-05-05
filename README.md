@@ -37,3 +37,11 @@ SculptMate is a Blender add-on that simplifies the process of generating human m
 ## Contributing
 
 Contributions are welcome! Feel free to fork the repository and submit pull requests with your improvements or bug fixes.
+
+## Third-Party Libraries
+
+This project utilizes the following third-party libraries:
+
+- **Library Name:** [PIFuHD: Multi-Level Pixel-Aligned Implicit Function for High-Resolution 3D Human Digitization](https://shunsukesaito.github.io/PIFuHD/)
+- **Author:** Saito, Shunsuke and Simon, Tomas and Saragih, Jason and Joo, Hanbyul
+- **Year:** 2020
