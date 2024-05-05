@@ -11,7 +11,7 @@ SculptMate is a Blender add-on that simplifies the process of generating human m
 
 ## Demo
 
-[![Samples](https://img.youtube.com/vi/epGhAymDYQs/0.jpg)](https://youtu.be/epGhAymDYQs)
+![Samples](assets/samples.gif)
 
 
 ## Installation
@@ -32,7 +32,7 @@ SculptMate is a Blender add-on that simplifies the process of generating human m
 
 ## Example Usage
 
-[![Usage Video](https://img.youtube.com/vi/4ee0Q3fYx4Q/0.jpg)](https://youtu.be/4ee0Q3fYx4Q)
+![Samples](assets/usage.gif)
 
 ## Contributing
 
