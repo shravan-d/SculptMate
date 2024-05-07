@@ -15,6 +15,7 @@ import subprocess
 import importlib
 from collections import namedtuple
 from .utils import label_multiline
+from . import addon_updater_ops
 
 Dependency = namedtuple("Dependency", ["module", "package", "name"])
 
@@ -131,7 +132,7 @@ class Warning_PT_panel(bpy.types.Panel):
 
 
 
-class EXAMPLE_OT_install_dependencies(bpy.types.Operator):
+class Install_dependencies(bpy.types.Operator):
     bl_idname = "example.install_dependencies"
     bl_label = "Install dependencies"
     bl_description = ("Downloads and installs the required python packages for this add-on. "
@@ -167,25 +168,28 @@ class EXAMPLE_OT_install_dependencies(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class EXAMPLE_preferences(bpy.types.AddonPreferences):
-    bl_idname = __name__
+class MyPreferences(bpy.types.AddonPreferences):
+    bl_idname = __package__
+    auto_check_update: bpy.props.BoolProperty(
+		name="Auto-check for Update",
+		description="If enabled, auto-check for updates using an interval",
+		default=False)
 
     def draw(self, context):
         layout = self.layout
-        # layout.label(text=  'The following packages will be installed through pip:')
-        # for dependency in dependencies:
-        #     layout.label(text=f'- {dependency.module}')
-        layout.operator(EXAMPLE_OT_install_dependencies.bl_idname, icon="CONSOLE")
+        layout.operator(Install_dependencies.bl_idname, icon="CONSOLE")
+        addon_updater_ops.update_settings_ui_condensed(self, context)
 
 
 preference_classes = (Warning_PT_panel,
-                      EXAMPLE_OT_install_dependencies,
-                      EXAMPLE_preferences)
+                      Install_dependencies,
+                      MyPreferences)
 
 
 def register():
     global dependencies_installed
     dependencies_installed = False
+    addon_updater_ops.register(bl_info)
 
     for cls in preference_classes:
         bpy.utils.register_class(cls)

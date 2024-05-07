@@ -5,6 +5,7 @@ __pycache__/
 
 checkpoints/
 generation/checkpoints/
+sculptmate_updater/
 
 # C extensions
 *.so
