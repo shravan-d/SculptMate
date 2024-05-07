@@ -6,6 +6,8 @@ bl_info = {
     "blender": (3, 2, 0),
     "location": "Render Properties > SculptMate",
     "category": "3D View",
+    "doc_url": "https://github.com/shravan-d/SculptMate#readme",
+	"tracker_url": "https://github.com/shravan-d/SculptMate/issues",
 }
 
 import bpy
