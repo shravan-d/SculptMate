@@ -73,7 +73,7 @@ def preprocess_image(img_path, device):
     input_raw = Image.open(img_path)
     input_raw.thumbnail(image_size, Image.Resampling.LANCZOS)
 
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path=ROOT_DIR+"/checkpoints/yolov5s.pt", force_reload=True) 
+    model = torch.hub.load('ultralytics/yolov5', 'custom', path=ROOT_DIR+"/checkpoints/yolov5s.pt", trust_repo=True) 
     results = model(input_raw)
     output = results.pandas().xyxy[0]
     objects = output[np.logical_and(output['name'] == 'person', output['confidence'] > 0.8)]
