@@ -7,6 +7,7 @@ SculptMate is a Blender add-on that simplifies the process of generating human m
 ### Update May 6
 - Bug Fixes
 - Add-On can be updated via Blender UI. Edit > Preferences > Add-ons > SculptMate
+
 Note: This version has to be downloaded from the Release page and added to Blender following the #Installation steps.
 
 
