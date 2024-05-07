@@ -45,3 +45,15 @@ This project utilizes the following third-party libraries:
 - **Library Name:** [PIFuHD: Multi-Level Pixel-Aligned Implicit Function for High-Resolution 3D Human Digitization](https://shunsukesaito.github.io/PIFuHD/)
 - **Author:** Saito, Shunsuke and Simon, Tomas and Saragih, Jason and Joo, Hanbyul
 - **Year:** 2020
+
+# Troubleshooting
+
+If you are experiencing trouble getting SculptMate running, check Blender's system console (in the top left under the "Window" dropdown next to "File" and "Edit") for any error messages. Then [search in the issues list](https://github.com/shravan-d/SculptMate/issues) with your error message and symptoms.
+
+> **Note** On macOS there is no option to open the system console. Instead, you can get logs by opening the app *Terminal*, entering the command `/Applications/Blender.app/Contents/MacOS/Blender` and pressing the Enter key. This will launch Blender and any error messages will show up in the Terminal app.
+
+![A screenshot of the "Window" > "Toggle System Console" menu action in Blender](assets/readme-toggle-console.png)
+
+Features and feedback are also accepted on the issues page. If you have any issues that aren't listed, feel free to add them there!
+
+The [SculptMate Discord server](https://discord.gg/SN36dpTAJz) also has a common issues list and a community of helpful people.
