@@ -4,6 +4,13 @@
 
 SculptMate is a Blender add-on that simplifies the process of generating human meshes. It automates a significant part of the character creation pipeline, allowing users to quickly create human meshes based on a single image.
 
+### Update May 6
+- Bug Fixes
+- Add-On can be updated via Blender UI. Edit > Preferences > Add-ons > SculptMate
+
+Note: This version has to be downloaded from the Release page and added to Blender following the #Installation steps.
+
+
 ## Features
 
 - Generate human meshes from single images.
