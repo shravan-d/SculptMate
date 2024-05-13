@@ -4,7 +4,7 @@ import os
 dirs_to_disregard = [".git", "assets", ".github", "checkpoints", "__pycache__"]
 
 def update_zip(zip_file, folder_path):
-    with zipfile.ZipFile(zip_file, 'a') as zipf:
+    with zipfile.ZipFile(zip_file, 'a', compression=zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
             disregard = False
             for dir in dirs_to_disregard:
