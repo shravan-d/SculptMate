@@ -2,7 +2,7 @@ bl_info = {
     "name": "SculptMate", 
     "description": "Generate a 3D Human Mesh from an image", 
     "author": "Shravan",
-    "version": (0, 1),
+    "version": (0, 2),
     "blender": (3, 2, 0),
     "location": "Render Properties > SculptMate",
     "category": "3D View",
