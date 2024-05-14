@@ -1,4 +1,3 @@
-from segment_anything import sam_model_registry, SamPredictor
 import os
 import numpy as np
 import torch
@@ -12,6 +11,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_sam_model(device):
+   from segment_anything import sam_model_registry
    sam_checkpoint = ROOT_DIR + "/checkpoints/sam_vit_h_4b8939.pth"
    model_type = "vit_h"
 
@@ -71,6 +71,7 @@ def image_preprocess_nosave(input_image, lower_contrast=True, rescale=True):
 
 
 def preprocess_image2(img_path, device):
+    from segment_anything import SamPredictor
     input_raw = Image.open(img_path)
     input_raw.thumbnail(image_size, Image.Resampling.LANCZOS)
 
