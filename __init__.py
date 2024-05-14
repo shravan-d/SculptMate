@@ -30,6 +30,7 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="pillow", package=None, name=None),
                 Dependency(module="torch", package=None, name=None),
                 Dependency(module="torchvision", package=None, name=None),
+                Dependency(module="onnxruntime", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
 dependencies_installed = False
