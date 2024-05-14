@@ -87,14 +87,13 @@ class Generate(DataStore, Operator):
         img_name = os.path.splitext(os.path.basename(context.scene.input_image_path))[0]
         print('Working on ', img_name)
         t1 = time.time()
-        preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, device=device)
+        preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
         if preprocessed is None:
             context.scene.error_msg = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
             return {'CANCELLED'}
         
         t2 = time.time()
         print('Preprocessing Time (s):', str(t2 - t1))
-        print('Estimate '+ str(0.7*(t2-t1)) + ' seconds remaining')
         # generate_mesh(device, img_path=input_image_path, scale=2.4)
         generate_mesh(device, input_image=preprocessed, scale=scale, input_name=img_name)
         t3 = time.time()
