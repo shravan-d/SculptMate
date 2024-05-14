@@ -16,7 +16,6 @@ def generate_mesh(device, input_image=None, input_name='', img_path='', scale=1)
     
     state_dict = None
     if os.path.exists(state_dict_path):
-        print('Updating checkpoint: ', state_dict_path)
         state_dict = torch.load(state_dict_path, map_location=device)
         opt = state_dict['opt']
     else:

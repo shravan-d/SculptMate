@@ -30,9 +30,7 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="pillow", package=None, name=None),
                 Dependency(module="torch", package=None, name=None),
                 Dependency(module="torchvision", package=None, name=None),
-                Dependency(module="scikit-image", package=None, name=None),
-                Dependency(module="git+https://github.com/facebookresearch/segment-anything.git", package=None, name=None),
-                Dependency(module="ultralytics", package=None, name=None))
+                Dependency(module="scikit-image", package=None, name=None))
 
 dependencies_installed = False
 
@@ -204,8 +202,6 @@ def register():
         import torchvision
         import numpy
         import pandas
-        import ultralytics
-        import segment_anything
         import skimage
         dependencies_installed = True
     except ModuleNotFoundError as err:

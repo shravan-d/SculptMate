@@ -1,16 +1,17 @@
-from segment_anything import sam_model_registry, SamPredictor
 import os
 import numpy as np
 import torch
 import cv2
 import time
 from PIL import Image
+from .rembg import remove
 
 image_size = (1024, 1024)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_sam_model(device):
+   from segment_anything import sam_model_registry
    sam_checkpoint = ROOT_DIR + "/checkpoints/sam_vit_h_4b8939.pth"
    model_type = "vit_h"
 
@@ -69,7 +70,8 @@ def image_preprocess_nosave(input_image, lower_contrast=True, rescale=True):
    return Image.fromarray((rgb * 255).astype(np.uint8)), scale
 
 
-def preprocess_image(img_path, device):
+def preprocess_image2(img_path, device):
+    from segment_anything import SamPredictor
     input_raw = Image.open(img_path)
     input_raw.thumbnail(image_size, Image.Resampling.LANCZOS)
 
@@ -88,4 +90,54 @@ def preprocess_image(img_path, device):
     image_sam = sam_out_nosave(sam_predictor, input_raw.convert("RGB"), bbox)
 
     input_image, scale = image_preprocess_nosave(image_sam, lower_contrast=True, rescale=True)
+    return input_image, scale
+
+
+def preprocess_image(img_path, ratio=0.85):
+    os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
+    input_raw = Image.open(img_path)
+    input_raw = remove(input_raw)
+
+    image = np.array(input_raw)
+    alpha = np.where(image[..., 3] > 0)
+    y1, y2, x1, x2 = (
+        alpha[0].min(),
+        alpha[0].max(),
+        alpha[1].min(),
+        alpha[1].max(),
+    )
+    fg = image[y1:y2, x1:x2]
+    # pad to square
+    size = max(fg.shape[0], fg.shape[1])
+    ph0, pw0 = (size - fg.shape[0]) // 2, (size - fg.shape[1]) // 2
+    ph1, pw1 = size - fg.shape[0] - ph0, size - fg.shape[1] - pw0
+    new_image = np.pad(
+        fg,
+        ((ph0, ph1), (pw0, pw1), (0, 0)),
+        mode="constant",
+        constant_values=((0, 0), (0, 0), (0, 0)),
+    )
+
+    # compute padding according to the ratio
+    new_size = int(new_image.shape[0] / ratio)
+    # pad to size, double side
+    ph0, pw0 = (new_size - size) // 2, (new_size - size) // 2
+    ph1, pw1 = new_size - size - ph0, new_size - size - pw0
+    new_image = np.pad(
+        new_image,
+        ((ph0, ph1), (pw0, pw1), (0, 0)),
+        mode="constant",
+        constant_values=((0, 0), (0, 0), (0, 0)),
+    )
+
+    input_image = Image.fromarray(new_image)
+    input_image = np.array(new_image).astype(np.float32) / 255.0
+
+    alpha = np.where(input_image[..., 3] > 0)
+    scale = input_image.shape[1] / (alpha[1].max() - alpha[1].min())
+
+    input_image = input_image[:, :, :3] * input_image[:, :, 3:4] + (1 - input_image[:, :, 3:4]) * 0.5
+    input_image = Image.fromarray((input_image * 255.0).astype(np.uint8))
+    input_image.thumbnail(image_size, Image.Resampling.LANCZOS)
+    
     return input_image, scale
