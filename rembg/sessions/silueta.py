@@ -2,7 +2,6 @@ import os
 from typing import List
 
 import numpy as np
-import pooch
 from PIL import Image
 from PIL.Image import Image as PILImage
 
@@ -60,6 +59,7 @@ class SiluetaSession(BaseSession):
         Returns:
             str: The path to the downloaded model file.
         """
+        import pooch
         fname = f"{cls.name()}.onnx"
         pooch.retrieve(
             "https://github.com/danielgatis/rembg/releases/download/v0.0.0/silueta.onnx",

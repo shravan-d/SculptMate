@@ -2,7 +2,6 @@ import os
 from typing import List
 
 import numpy as np
-import pooch
 from PIL import Image
 from PIL.Image import Image as PILImage
 
@@ -56,6 +55,7 @@ class DisSession(BaseSession):
         Returns:
             str: The path of the downloaded model file.
         """
+        import pooch
         fname = f"{cls.name(*args, **kwargs)}.onnx"
         pooch.retrieve(
             "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-anime.onnx",

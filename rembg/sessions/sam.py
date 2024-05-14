@@ -5,7 +5,6 @@ from typing import List
 import cv2
 import numpy as np
 import onnxruntime as ort
-import pooch
 from jsonschema import validate
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -271,6 +270,7 @@ class SamSession(BaseSession):
         Returns:
             tuple: A tuple containing the file paths of the downloaded encoder and decoder models.
         """
+        import pooch
         model_name = kwargs.get("sam_model", "sam_vit_b_01ec64")
         quant = kwargs.get("sam_quant", False)
 

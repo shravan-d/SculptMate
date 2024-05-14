@@ -2,7 +2,6 @@ import os
 from typing import List
 
 import numpy as np
-import pooch
 from PIL import Image
 from PIL.Image import Image as PILImage
 from scipy.special import log_softmax
@@ -126,6 +125,7 @@ class Unet2ClothSession(BaseSession):
 
     @classmethod
     def download_models(cls, *args, **kwargs):
+        import pooch
         fname = f"{cls.name(*args, **kwargs)}.onnx"
         pooch.retrieve(
             "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net_cloth_seg.onnx",
