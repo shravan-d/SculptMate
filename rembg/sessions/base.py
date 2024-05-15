@@ -31,8 +31,12 @@ class BaseSession:
         else:
             self.providers.extend(_providers)
 
+        import inspect
+        src_file_path = inspect.getfile(lambda: None)
+        parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(src_file_path)))
+
         self.inner_session = ort.InferenceSession(
-            str(self.__class__.download_models(*args, **kwargs)),
+            parent_dir+ "/checkpoints/u2net.onnx",
             providers=self.providers,
             sess_options=sess_opts,
         )
