@@ -94,7 +94,7 @@ def preprocess_image2(img_path, device):
 
 
 def preprocess_image(img_path, ratio=0.85):
-    os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
+    # os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
     input_raw = Image.open(img_path)
     input_raw = remove(input_raw)
 
@@ -138,6 +138,8 @@ def preprocess_image(img_path, ratio=0.85):
 
     input_image = input_image[:, :, :3] * input_image[:, :, 3:4] + (1 - input_image[:, :, 3:4]) * 0.5
     input_image = Image.fromarray((input_image * 255.0).astype(np.uint8))
-    input_image.thumbnail(image_size, Image.Resampling.LANCZOS)
+    if input_image.size[0] < 250:
+        return None, -1
+    input_image = input_image.resize(image_size, Image.Resampling.LANCZOS)
     
     return input_image, scale
