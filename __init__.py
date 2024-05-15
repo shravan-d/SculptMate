@@ -204,12 +204,15 @@ def register():
         import numpy
         import pandas
         import skimage
+        import onnxruntime
         dependencies_installed = True
     except ModuleNotFoundError as err:
         print(err)
         # Don't register other panels, operators etc.
         return
-
+    
+    import faulthandler
+    faulthandler.enable()
     from . import GUIPanel
     GUIPanel.register()
 
