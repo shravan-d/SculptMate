@@ -81,7 +81,6 @@ def import_obj_blender(verts, faces, name='NewMesh'):
     mesh_data.from_pydata(verts, [], faces)
     new_object = bpy.data.objects.new(name=name, object_data=mesh_data)
     bpy.context.collection.objects.link(new_object)
-    print('Imported')
 
 
 def gen_mesh(res, net, cuda, data, thresh=0.5, use_octree=True, components=False):
