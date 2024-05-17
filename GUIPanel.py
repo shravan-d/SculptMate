@@ -4,6 +4,7 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 import addon_utils
 import torch
+import threading
 
 from .generation.generate import generate_mesh
 from .preprocessing import preprocess_image
@@ -18,14 +19,14 @@ def create_image_textures(image_path, texture_name):
     texture = bpy.data.textures.new(name=texture_name, type="IMAGE")
     texture.image = ideal_image
     texture.extension = 'EXTEND'
-    print('Created ', texture_name)
 
 
 class DataStore:
     bpy.types.Scene.input_image_path = bpy.props.StringProperty()
     bpy.types.Scene.current_texture_name = bpy.props.StringProperty()
     bpy.types.Scene.initialized = bpy.props.BoolProperty(default=False)
-    bpy.types.Scene.error_msg = bpy.props.StringProperty(default="")
+    bpy.types.Scene.buttons_enabled = bpy.props.BoolProperty(default=True)
+    bpy.types.Scene.message = bpy.props.StringProperty(default="")
 
     @classmethod
     def poll(cls, context):
@@ -54,8 +55,8 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             col = self.layout.box().column()
             col.template_preview(bpy.data.textures[context.scene.current_texture_name])
             layout.separator()
-        if context.scene.error_msg is not "":
-            label_multiline(layout, text=context.scene.error_msg)
+        if context.scene.message != "":
+            label_multiline(layout, text=context.scene.message)
 
         layout.operator("tool.generate", text="Generate")
 
@@ -64,12 +65,17 @@ class FileBrowser(DataStore, Operator, ImportHelper):
     bl_idname = "tool.filebrowser"
     bl_label = "Select Image"
 
+    @classmethod
+    def poll(self, context):
+        # Deactivate when generation is running
+        return context.scene.buttons_enabled
+
     def execute(self, context):
         filename = self.filepath.split('\\')[-1].split('.')[0]
         create_image_textures(self.filepath, '.'+filename)
         context.scene.input_image_path = self.filepath
         context.scene.current_texture_name = '.'+filename
-        context.scene.error_msg = ""
+        context.scene.message = ""
 
         return {'FINISHED'}
 
@@ -77,6 +83,12 @@ class FileBrowser(DataStore, Operator, ImportHelper):
 class Generate(DataStore, Operator):
     bl_idname = "tool.generate"
     bl_label = "Generate Model"
+
+    @classmethod
+    def poll(self, context):
+        # Deactivate when generation is running
+        return context.scene.buttons_enabled
+
 
     def execute(self, context):
         if context.scene.input_image_path is None:
@@ -89,17 +101,35 @@ class Generate(DataStore, Operator):
         t1 = time.time()
         preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
         if preprocessed is None:
-            context.scene.error_msg = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
+            context.scene.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
             return {'CANCELLED'}
         
         t2 = time.time()
         print('Preprocessing Time (s):', str(t2 - t1))
-        # generate_mesh(device, img_path=input_image_path, scale=2.4)
-        generate_mesh(device, input_image=preprocessed, scale=scale, input_name=img_name)
-        t3 = time.time()
-        print('Model Time (s):', str(t3 - t2))
+        thread = GenerationWorker(device, preprocessed, scale, img_name, context)
+        thread.start()
 
         return {'FINISHED'}
+
+
+class GenerationWorker(DataStore, threading.Thread):
+
+    def __init__(self, device, image, scale, name, context):
+        self.device = device
+        self.image = image
+        self.scale = scale
+        self.img_name = name
+        self.context = context
+        threading.Thread.__init__(self)
+
+    def run(self):
+        self.context.scene.message = "Your mesh is being generated and will show up in about 30 seconds."
+        self.context.scene.buttons_enabled = False
+        # generate_mesh(device, img_path=input_image_path, scale=2.4)
+        generate_mesh(self.device, input_image=self.image, scale=self.scale, input_name=self.img_name)
+        self.context.scene.message = ""
+        self.context.scene.buttons_enabled = True
+        
 
 
 def register():
@@ -112,6 +142,3 @@ def unregister():
     bpy.utils.unregister_class(UI_PT_main)
     bpy.utils.unregister_class(FileBrowser)
     bpy.utils.unregister_class(Generate)
-
-
-# check if you can up the resultion
