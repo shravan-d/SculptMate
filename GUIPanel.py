@@ -33,6 +33,18 @@ class DataStore:
         return True
 
 
+class MyProperties(bpy.types.PropertyGroup):
+    model_type: bpy.props.EnumProperty(
+        name="Model Type",
+        description="Select the category of your mesh",
+        items=[
+            ('human', "Human", "Generate a human mesh"),
+            ('other', "Other", "Generate other objects")
+        ],
+        default='other'
+    ) # type: ignore
+
+
 class UI_PT_main(DataStore, bpy.types.Panel):
     bl_label = "SculptMate"
     bl_idname = "panel_PT_main"
@@ -43,12 +55,13 @@ class UI_PT_main(DataStore, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        label_multiline(layout, text="Generating a human mesh from one image.")
-        label_multiline(layout, text="For best results, use full-body images with arms at the sides.")
+        label_multiline(layout, text="Generate a mesh from an image.")
+        label_multiline(layout, text="For best results, use images with the object centered and fully visible.")
         layout.separator()
         # label_multiline(layout, text="Think of the vitruvian man as the ideal poser for the model. The closer you are to this pose, the easier it is for the model. Of course, you don't need the extra limbs, but keeping the body parts visually distinct helps.")
         # col = self.layout.box().column()
         # col.template_preview(bpy.data.textures['.vitruvianTexture'])
+        layout.prop(context.scene.my_props, "model_type", expand=True)
         layout.separator()
         layout.operator("tool.filebrowser", text="Open Image")
         if context.scene.input_image_path:
@@ -61,7 +74,7 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.operator("tool.generate", text="Generate")
 
 
-class FileBrowser(DataStore, Operator, ImportHelper):
+class File_OT_Browser(DataStore, Operator, ImportHelper):
     bl_idname = "tool.filebrowser"
     bl_label = "Select Image"
 
@@ -80,7 +93,7 @@ class FileBrowser(DataStore, Operator, ImportHelper):
         return {'FINISHED'}
 
 
-class Generate(DataStore, Operator):
+class Mesh_OT_Generate(DataStore, Operator):
     bl_idname = "tool.generate"
     bl_label = "Generate Model"
 
@@ -91,8 +104,8 @@ class Generate(DataStore, Operator):
 
 
     def execute(self, context):
-        if context.scene.input_image_path is None:
-            print('No Image set')
+        if context.scene.input_image_path == "":
+            self.report({"ERROR"}, 'Please select image first')
             return {'CANCELLED'}
         
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -125,8 +138,11 @@ class GenerationWorker(DataStore, threading.Thread):
     def run(self):
         self.context.scene.message = "Your mesh is being generated and will show up in about 30 seconds."
         self.context.scene.buttons_enabled = False
-        # generate_mesh(device, img_path=input_image_path, scale=2.4)
-        generate_mesh(self.device, input_image=self.image, scale=self.scale, input_name=self.img_name)
+        if self.context.scene.my_props.model_type == 'human':
+            generate_mesh(self.device, input_image=self.image, scale=self.scale, input_name=self.img_name)
+            # generate_mesh(device, img_path=input_image_path, scale=2.4)
+        elif self.context.scene.my_props.model_type == 'other':
+            print('Running Trippo')
         self.context.scene.message = ""
         self.context.scene.buttons_enabled = True
         
@@ -134,11 +150,15 @@ class GenerationWorker(DataStore, threading.Thread):
 
 def register():
     # create_image_textures(ROOT_DIR+'/checkpoints/vitruvian.jpg', '.vitruvianTexture')
+    bpy.utils.register_class(MyProperties)
+    bpy.types.Scene.my_props = bpy.props.PointerProperty(type=MyProperties)
     bpy.utils.register_class(UI_PT_main)
-    bpy.utils.register_class(FileBrowser)
-    bpy.utils.register_class(Generate)
+    bpy.utils.register_class(File_OT_Browser)
+    bpy.utils.register_class(Mesh_OT_Generate)
     
 def unregister():
     bpy.utils.unregister_class(UI_PT_main)
-    bpy.utils.unregister_class(FileBrowser)
-    bpy.utils.unregister_class(Generate)
+    bpy.utils.unregister_class(File_OT_Browser)
+    bpy.utils.unregister_class(Mesh_OT_Generate)
+    bpy.utils.unregister_class(MyProperties)
+    del bpy.types.Scene.my_props
