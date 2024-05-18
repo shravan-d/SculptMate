@@ -31,10 +31,13 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="torch", package=None, name=None),
                 Dependency(module="torchvision", package=None, name=None),
                 Dependency(module="onnxruntime", package=None, name=None),
+                Dependency(module="omegaconf==2.3.0", package=None, name=None),
+                Dependency(module="einops==0.7.0", package=None, name=None),
+                Dependency(module="transformers==4.35.0", package=None, name=None),
+                Dependency(module="git+https://github.com/tatsy/torchmcubes.git", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
 dependencies_installed = False
-
 
 def import_module(module_name, global_name=None, reload=True):
     """
@@ -110,6 +113,15 @@ def install_and_import_module(module_name, package_name=None, global_name=None):
     # The installation succeeded, attempt to import the module again
     # import_module(module_name, global_name)
 
+class DataStore:
+    bpy.types.Scene.buttons_enabled = bpy.props.BoolProperty(default=True)
+    bpy.types.Scene.installation_progress = bpy.props.IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+    
+    
 class Warning_PT_panel(bpy.types.Panel):
     bl_label = "SculptMate"
     bl_space_type = "PROPERTIES"
@@ -133,7 +145,7 @@ class Warning_PT_panel(bpy.types.Panel):
 
 
 
-class Install_dependencies(bpy.types.Operator):
+class Install_dependencies(DataStore, bpy.types.Operator):
     bl_idname = "example.install_dependencies"
     bl_label = "Install dependencies"
     bl_description = ("Downloads and installs the required python packages for this add-on. "
@@ -143,30 +155,51 @@ class Install_dependencies(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         # Deactivate when dependencies have been installed
-        return not dependencies_installed
-
-    def execute(self, context):
-        try:
-            install_pip()
-            install_count = 0
-            for dependency in dependencies:
-                install_and_import_module(module_name=dependency.module,
-                                          package_name=dependency.package,
-                                          global_name=dependency.name)
-                install_count += 1
-                print(f'{install_count} / {len(dependencies)} installed.')
-        except (subprocess.CalledProcessError, ImportError) as err:
-            self.report({"ERROR"}, str(err))
-            print(err)
-            return {"CANCELLED"}
-
+        return not dependencies_installed and context.scene.buttons_enabled
+    
+    def install_complete_callback(self):
+        bpy.context.scene.installation_progress = -1
         global dependencies_installed
         dependencies_installed = True
 
         from . import GUIPanel
         GUIPanel.register()
+    
+    def install_error_callback(self):
+        bpy.context.scene.installation_progress = -2
+
+    def execute(self, context):
+        install_pip()
+        thread = InstallationWorker(self, self.install_complete_callback, self.install_error_callback, context)
+        thread.start()
 
         return {"FINISHED"}
+
+import threading
+class InstallationWorker(threading.Thread):
+
+    def __init__(self, parent_cls, finish_callback, error_callback, context):
+        self.parent_cls = parent_cls
+        self.finish_callback = finish_callback
+        self.error_callback = error_callback
+        self.context = context
+        threading.Thread.__init__(self)
+
+    def run(self):
+        self.context.scene.buttons_enabled = False
+        try:
+            for dependency in dependencies:
+                self.context.scene.installation_progress += 1
+                install_and_import_module(module_name=dependency.module,
+                                          package_name=dependency.package,
+                                          global_name=dependency.name)
+        except (subprocess.CalledProcessError, ImportError) as err:
+            print('[Installation Error]', err)
+            self.context.scene.buttons_enabled = True
+            self.error_callback()
+            return
+        self.finish_callback()
+        self.context.scene.buttons_enabled = True
 
 
 class MyPreferences(bpy.types.AddonPreferences):
@@ -179,6 +212,12 @@ class MyPreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.operator(Install_dependencies.bl_idname, icon="CONSOLE")
+        if context.scene.installation_progress == 0:
+            layout.label(text='Installation starting.')
+        if context.scene.installation_progress > 0:
+            layout.label(text=f'Installation Progress: {int(100*context.scene.installation_progress / len(dependencies))}%')
+        if context.scene.installation_progress == -2:
+            layout.label(text='Installation Failed. Please check system console for details.')
         addon_updater_ops.update_settings_ui_condensed(self, context)
 
 
@@ -205,6 +244,10 @@ def register():
         import pandas
         import skimage
         import onnxruntime
+        import omegaconf
+        import einops
+        import transformers
+        import torchmcubes
         dependencies_installed = True
     except ModuleNotFoundError as err:
         print(err)

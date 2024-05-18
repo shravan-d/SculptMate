@@ -2,7 +2,9 @@ numpy
 pillow
 torch
 torchvision
-ultralytics
 pandas
 scikit-image
-git+https://github.com/facebookresearch/segment-anything.git
+einops==0.7.0
+omegaconf==2.3.0
+transformers==4.35.0
+git+https://github.com/tatsy/torchmcubes.git
