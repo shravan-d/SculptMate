@@ -16,13 +16,18 @@ class TripoGenerator():
 
     def initiate_model(self):
         if self.model is None:
-            self.model = TSR.from_pretrained(
-                self.checkpoint_dir,
-                config_name="config.yaml",
-                weight_name="model.ckpt",
-            )
-            self.model.renderer.set_chunk_size(self.chunk_size)
-            self.model.to(self.device)
+            try:
+                self.model = TSR.from_pretrained(
+                    self.checkpoint_dir,
+                    config_name="config.yaml",
+                    weight_name="model.ckpt",
+                )
+                self.model.renderer.set_chunk_size(self.chunk_size)
+                self.model.to(self.device)
+            except Exception as e:
+                print('[Model Dos Initialization Error]', e)
+                return 2
+            return 0
 
     def generate_mesh(self, input_image, input_name=None):
         if self.model is None:
@@ -32,6 +37,7 @@ class TripoGenerator():
                 scene_codes = self.model([input_image], device=self.device)
 
             self.model.extract_mesh(scene_codes, resolution=self.mc_resolution, mesh_name=input_name)
+            print('Generation Complete')
             return 0
         except Exception as e:
             print('[Generation Error]', e)

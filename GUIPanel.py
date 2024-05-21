@@ -6,10 +6,10 @@ import addon_utils
 import torch
 import threading
 
-from .generation.generate import generate_mesh
 from .preprocessing import preprocess_image
 from .utils import label_multiline
 from .TripoSR.generate import TripoGenerator
+from .generation.generate import PifuGenerator
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -141,10 +141,10 @@ class GenerationWorker(DataStore, threading.Thread):
         # Generate mesh based on selected model type
         t1 = time.time()
         if self.context.scene.my_props.model_type == 'human':
-            generate_mesh(self.device, input_image=self.image, scale=self.scale, input_name=self.img_name)
-            # generate_mesh(device, img_path=input_image_path, scale=2.4)
+            human_gen = PifuGenerator(self.device)
+            human_gen.initiate_model()
+            human_gen.generate_mesh(input_image=self.image, input_name=self.img_name, scale=self.scale)
         elif self.context.scene.my_props.model_type == 'other':
-            print('Running Trippo')
             object_gen = TripoGenerator(self.device)
             object_gen.initiate_model()
             object_gen.generate_mesh(input_image=self.image, input_name=self.img_name)

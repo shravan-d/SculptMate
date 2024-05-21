@@ -7,28 +7,46 @@ import os
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-state_dict_path = ROOT_DIR + '/checkpoints/pifuhd.pt'
-projection_mode = 'orthogonal'
 
+class PifuGenerator():
+    def __init__(self, device):
+        self.state_dict_path = ROOT_DIR + '/checkpoints/pifuhd.pt'
+        self.projection_mode = 'orthogonal'
+        self.device = device
+        self.netMR = None
 
-def generate_mesh(device, input_image=None, input_name='', img_path='', scale=1):
-    print('Computations running on', device)
+    def initiate_model(self):
+        if self.netMR is None:
+            state_dict = None
+            if os.path.exists(self.state_dict_path):
+                state_dict = torch.load(self.state_dict_path, map_location=self.device)
+                self.opt = state_dict['opt']
+            else:
+                raise Exception('Unable to find state dictionary!', self.state_dict_path)
+
+            try:
+                self.opt_netG = state_dict['opt_netG']
+                self.netG = HGPIFuNetwNML(self.opt_netG, self.projection_mode).to(device=self.device)
+                self.netMR = HGPIFuMRNet(self.opt, self.netG, self.projection_mode).to(device=self.device)
+                self.netMR.load_state_dict(state_dict['model_state_dict'])
+            except Exception as e:
+                print('[Model Uno Initialization Error]', e)
+                return 2
+            return 0
+
     
-    state_dict = None
-    if os.path.exists(state_dict_path):
-        state_dict = torch.load(state_dict_path, map_location=device)
-        opt = state_dict['opt']
-    else:
-        raise Exception('Unable to find state dictionary!', state_dict_path)
-
-    opt_netG = state_dict['opt_netG']
-    netG = HGPIFuNetwNML(opt_netG, projection_mode).to(device=device)
-    netMR = HGPIFuMRNet(opt, netG, projection_mode).to(device=device)
-    netMR.load_state_dict(state_dict['model_state_dict'])
-    
-    with torch.no_grad():
-        netG.eval()
-        if input_image is None:
-            input_image, input_name = read_image_from_path(img_path=img_path)
-        pifu_input = get_pifu_input(image=input_image, scale=scale, img_name=input_name)
-        gen_mesh(opt.resolution, netMR, device, pifu_input, components=opt.use_compose)
+    def generate_mesh(self, input_image=None, input_name='', img_path='', scale=1):
+        if self.netMR is None:
+            return 1
+        try:
+            if input_image is None:
+                input_image, input_name = read_image_from_path(img_path=img_path)
+            with torch.no_grad():
+                self.netG.eval()
+                pifu_input = get_pifu_input(image=input_image, scale=scale, img_name=input_name)
+                gen_mesh(self.opt.resolution, self.netMR, self.device, pifu_input, components=self.opt.use_compose)
+            print('Generation Complete')
+            return 0
+        except Exception as e:
+            print('[Generation Error]', e)
+            return 2
