@@ -34,7 +34,9 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="onnxruntime", package=None, name=None),
                 Dependency(module="omegaconf==2.3.0", package=None, name=None),
                 Dependency(module="einops==0.7.0", package=None, name=None),
-                Dependency(module="transformers==4.35.0", package=None, name=None),
+                Dependency(module="transformers==4.38.0", package=None, name=None),
+                Dependency(module="opencv-python", package=None, name=None),
+                Dependency(module="jsonschema", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
 dependencies_installed = False
@@ -242,10 +244,12 @@ def register():
         import torchvision
         import numpy
         import pandas
+        import jsonschema
         import skimage
         import onnxruntime
         import omegaconf
         import einops
+        import cv2
         import transformers
         dependencies_installed = True
     except ModuleNotFoundError as err:

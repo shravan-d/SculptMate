@@ -55,10 +55,10 @@ class UI_PT_main(DataStore, bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Transform your images into stunning 3D meshes!")
+        layout.label(text="Transform your images into 3D meshes!")
         layout.label(text="For the best results:")
-        layout.label(text="- Use images where the object is centered")
-        layout.label(text="- Ensure the object is fully visible")
+        layout.label(text="- The object is centered")
+        layout.label(text="- There is nothing in front of it")
         layout.label(text="Let's goooo!")
         layout.separator()
         layout.prop(context.scene.my_props, "model_type", expand=True)
@@ -113,7 +113,12 @@ class Mesh_OT_Generate(DataStore, Operator):
         img_name = os.path.splitext(os.path.basename(context.scene.input_image_path))[0]
         print('Working on ', img_name)
 
-        preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
+        try:
+            preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
+        except Exception as e:
+            self.report({"ERROR"}, 'Please view system console for details')
+            return {'CANCELLED'}
+
         if preprocessed is None:
             context.scene.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
             return {'CANCELLED'}
