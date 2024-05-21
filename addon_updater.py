@@ -471,7 +471,6 @@ class SingletonUpdater:
     def verbose(self, value):
         try:
             self._verbose = bool(value)
-            self.print_verbose("Verbose is enabled")
         except:
             raise ValueError("Verbose must be a boolean value")
 
@@ -1506,7 +1505,6 @@ class SingletonUpdater:
         if os.path.isfile(jpath):
             with open(jpath) as data_file:
                 self._json = json.load(data_file)
-                self.print_verbose("Read in JSON settings from file")
         else:
             self._json = {
                 "last_check": "",
