@@ -55,9 +55,11 @@ class UI_PT_main(DataStore, bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-
-        label_multiline(layout, text="Generate a mesh from an image.")
-        label_multiline(layout, text="For best results, use images with the object centered and fully visible.")
+        layout.label(text="Transform your images into stunning 3D meshes!")
+        layout.label(text="For the best results:")
+        layout.label(text="- Use images where the object is centered")
+        layout.label(text="- Ensure the object is fully visible")
+        layout.label(text="Let's goooo!")
         layout.separator()
         layout.prop(context.scene.my_props, "model_type", expand=True)
         layout.separator()
