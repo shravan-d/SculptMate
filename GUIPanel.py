@@ -9,6 +9,7 @@ import threading
 from .generation.generate import generate_mesh
 from .preprocessing import preprocess_image
 from .utils import label_multiline
+from .TripoSR.generate import TripoGenerator
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,9 +59,6 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         label_multiline(layout, text="Generate a mesh from an image.")
         label_multiline(layout, text="For best results, use images with the object centered and fully visible.")
         layout.separator()
-        # label_multiline(layout, text="Think of the vitruvian man as the ideal poser for the model. The closer you are to this pose, the easier it is for the model. Of course, you don't need the extra limbs, but keeping the body parts visually distinct helps.")
-        # col = self.layout.box().column()
-        # col.template_preview(bpy.data.textures['.vitruvianTexture'])
         layout.prop(context.scene.my_props, "model_type", expand=True)
         layout.separator()
         layout.operator("tool.filebrowser", text="Open Image")
@@ -104,6 +102,7 @@ class Mesh_OT_Generate(DataStore, Operator):
 
 
     def execute(self, context):
+        # Ensure input image is configured
         if context.scene.input_image_path == "":
             self.report({"ERROR"}, 'Please select image first')
             return {'CANCELLED'}
@@ -111,14 +110,13 @@ class Mesh_OT_Generate(DataStore, Operator):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         img_name = os.path.splitext(os.path.basename(context.scene.input_image_path))[0]
         print('Working on ', img_name)
-        t1 = time.time()
+
         preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
         if preprocessed is None:
             context.scene.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
             return {'CANCELLED'}
         
-        t2 = time.time()
-        print('Preprocessing Time (s):', str(t2 - t1))
+        # Run the generation on a different thread so Blender doesn't hang
         thread = GenerationWorker(device, preprocessed, scale, img_name, context)
         thread.start()
 
@@ -136,20 +134,30 @@ class GenerationWorker(DataStore, threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        self.context.scene.message = "Your mesh is being generated and will show up in about 30 seconds."
+        # Disable the buttons while generation is running
+        self.context.scene.message = "Your mesh is being generated."
         self.context.scene.buttons_enabled = False
+
+        # Generate mesh based on selected model type
+        t1 = time.time()
         if self.context.scene.my_props.model_type == 'human':
             generate_mesh(self.device, input_image=self.image, scale=self.scale, input_name=self.img_name)
             # generate_mesh(device, img_path=input_image_path, scale=2.4)
         elif self.context.scene.my_props.model_type == 'other':
             print('Running Trippo')
+            object_gen = TripoGenerator(self.device)
+            object_gen.initiate_model()
+            object_gen.generate_mesh(input_image=self.image, input_name=self.img_name)
+        t2 = time.time()
+        print('Generation Time (s):', str(t2 - t1 + 1))
+
+        # Enable buttons once generation is complete
         self.context.scene.message = ""
         self.context.scene.buttons_enabled = True
         
 
 
 def register():
-    # create_image_textures(ROOT_DIR+'/checkpoints/vitruvian.jpg', '.vitruvianTexture')
     bpy.utils.register_class(MyProperties)
     bpy.types.Scene.my_props = bpy.props.PointerProperty(type=MyProperties)
     bpy.utils.register_class(UI_PT_main)

@@ -14,6 +14,7 @@ import bpy
 import os
 import sys
 import subprocess
+import threading
 import importlib
 from collections import namedtuple
 from .utils import label_multiline
@@ -34,7 +35,6 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="omegaconf==2.3.0", package=None, name=None),
                 Dependency(module="einops==0.7.0", package=None, name=None),
                 Dependency(module="transformers==4.35.0", package=None, name=None),
-                Dependency(module="git+https://github.com/tatsy/torchmcubes.git", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
 dependencies_installed = False
@@ -170,12 +170,12 @@ class Install_dependencies(DataStore, bpy.types.Operator):
 
     def execute(self, context):
         install_pip()
+        # Install dependencies in background thread so Blender doesn't hang
         thread = InstallationWorker(self, self.install_complete_callback, self.install_error_callback, context)
         thread.start()
 
         return {"FINISHED"}
 
-import threading
 class InstallationWorker(threading.Thread):
 
     def __init__(self, parent_cls, finish_callback, error_callback, context):
@@ -247,7 +247,6 @@ def register():
         import omegaconf
         import einops
         import transformers
-        import torchmcubes
         dependencies_installed = True
     except ModuleNotFoundError as err:
         print(err)
