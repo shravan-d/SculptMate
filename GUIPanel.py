@@ -23,11 +23,11 @@ def create_image_textures(image_path, texture_name):
 
 
 class DataStore:
-    bpy.types.Scene.input_image_path = bpy.props.StringProperty()
-    bpy.types.Scene.current_texture_name = bpy.props.StringProperty()
-    bpy.types.Scene.initialized = bpy.props.BoolProperty(default=False)
-    bpy.types.Scene.buttons_enabled = bpy.props.BoolProperty(default=True)
-    bpy.types.Scene.message = bpy.props.StringProperty(default="")
+    # WindowManager vars are reset when Blender is closed. Scene vars are serialized with the save file
+    bpy.types.WindowManager.input_image_path = bpy.props.StringProperty(default="")
+    bpy.types.WindowManager.current_texture_name = bpy.props.StringProperty(default="")
+    bpy.types.WindowManager.buttons_enabled = bpy.props.BoolProperty(default=True)
+    bpy.types.WindowManager.message = bpy.props.StringProperty(default="")
 
     @classmethod
     def poll(cls, context):
@@ -64,12 +64,12 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.prop(context.scene.my_props, "model_type", expand=True)
         layout.separator()
         layout.operator("tool.filebrowser", text="Open Image")
-        if context.scene.input_image_path:
+        if context.window_manager.input_image_path != "":
             col = self.layout.box().column()
-            col.template_preview(bpy.data.textures[context.scene.current_texture_name])
+            col.template_preview(bpy.data.textures[context.window_manager.current_texture_name])
             layout.separator()
-        if context.scene.message != "":
-            label_multiline(layout, text=context.scene.message)
+        if context.window_manager.message != "":
+            label_multiline(layout, text=context.window_manager.message)
 
         layout.operator("tool.generate", text="Generate")
 
@@ -81,14 +81,14 @@ class File_OT_Browser(DataStore, Operator, ImportHelper):
     @classmethod
     def poll(self, context):
         # Deactivate when generation is running
-        return context.scene.buttons_enabled
+        return context.window_manager.buttons_enabled
 
     def execute(self, context):
         filename = self.filepath.split('\\')[-1].split('.')[0]
         create_image_textures(self.filepath, '.'+filename)
-        context.scene.input_image_path = self.filepath
-        context.scene.current_texture_name = '.'+filename
-        context.scene.message = ""
+        context.window_manager.input_image_path = self.filepath
+        context.window_manager.current_texture_name = '.'+filename
+        context.window_manager.message = ""
 
         return {'FINISHED'}
 
@@ -100,27 +100,27 @@ class Mesh_OT_Generate(DataStore, Operator):
     @classmethod
     def poll(self, context):
         # Deactivate when generation is running
-        return context.scene.buttons_enabled
+        return context.window_manager.buttons_enabled
 
 
     def execute(self, context):
         # Ensure input image is configured
-        if context.scene.input_image_path == "":
+        if context.window_manager.input_image_path == "":
             self.report({"ERROR"}, 'Please select image first')
             return {'CANCELLED'}
         
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        img_name = os.path.splitext(os.path.basename(context.scene.input_image_path))[0]
+        img_name = os.path.splitext(os.path.basename(context.window_manager.input_image_path))[0]
         print('Working on ', img_name)
 
         try:
-            preprocessed, scale = preprocess_image(img_path=context.scene.input_image_path, ratio=0.75)
+            preprocessed, scale = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
         except Exception as e:
             self.report({"ERROR"}, 'Please view system console for details')
             return {'CANCELLED'}
 
         if preprocessed is None:
-            context.scene.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
+            context.window_manager.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
             return {'CANCELLED'}
         
         # Run the generation on a different thread so Blender doesn't hang
@@ -142,8 +142,8 @@ class GenerationWorker(DataStore, threading.Thread):
 
     def run(self):
         # Disable the buttons while generation is running
-        self.context.scene.message = "Your mesh is being generated."
-        self.context.scene.buttons_enabled = False
+        self.context.window_manager.message = "Your mesh is being generated."
+        self.context.window_manager.buttons_enabled = False
 
         # Generate mesh based on selected model type
         t1 = time.time()
@@ -159,9 +159,8 @@ class GenerationWorker(DataStore, threading.Thread):
         print('Generation Time (s):', str(t2 - t1 + 1))
 
         # Enable buttons once generation is complete
-        self.context.scene.message = ""
-        self.context.scene.buttons_enabled = True
-        
+        self.context.window_manager.message = ""
+        self.context.window_manager.buttons_enabled = True
 
 
 def register():
@@ -171,6 +170,7 @@ def register():
     bpy.utils.register_class(File_OT_Browser)
     bpy.utils.register_class(Mesh_OT_Generate)
     
+
 def unregister():
     bpy.utils.unregister_class(UI_PT_main)
     bpy.utils.unregister_class(File_OT_Browser)
