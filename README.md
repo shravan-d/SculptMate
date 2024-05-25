@@ -1,25 +1,16 @@
 # SculptMate
 
-## Overview
-
-SculptMate is a Blender add-on that simplifies the process of generating human meshes. It automates a significant part of the character creation pipeline, allowing users to quickly create human meshes based on a single image.
-
-### Update May 6
-- Bug Fixes
-- Add-On can be updated via Blender UI. Edit > Preferences > Add-ons > SculptMate
-
-Note: This version has to be downloaded from the Release page and added to Blender following the #Installation steps.
-
+SculptMate is a Blender add-on that simplifies the process of generating meshes. It automates a significant part of the game development pipeline, allowing users to quickly create meshes from a single image.
 
 ## Features
 
-- Generate human meshes from single images.
-- Automate 30% of the character generation pipeline.
+- Generate meshes of objects and humans from a single image.
+- Create background assets with ease allowing you more time to work on the important parts of your render.
+- Automate a major part of the character generation pipeline by obtaining a base human mesh.
 
 ## Demo
 
 ![Samples](assets/samples.gif)
-
 
 ## Installation
 
@@ -28,7 +19,6 @@ Note: This version has to be downloaded from the Release page and added to Blend
 3. Click on `Install` and select the downloaded zip file.
 4. Enable the add-on by checking the checkbox next to its name.
 5. Install dependencies by clicking the provided button.
-   Optionally: If you are comfortable with blender's python environment and you'd prefer installing the dependencies yourself, you can use the requirements.txt file. 
 
 ## Usage
 
@@ -49,9 +39,13 @@ Contributions are welcome! Feel free to fork the repository and submit pull requ
 
 This project utilizes the following third-party libraries:
 
-- **Library Name:** [PIFuHD: Multi-Level Pixel-Aligned Implicit Function for High-Resolution 3D Human Digitization](https://shunsukesaito.github.io/PIFuHD/)
-- **Author:** Saito, Shunsuke and Simon, Tomas and Saragih, Jason and Joo, Hanbyul
-- **Year:** 2020
+- **Library:** [PIFuHD: Multi-Level Pixel-Aligned Implicit Function for High-Resolution 3D Human Digitization](https://shunsukesaito.github.io/PIFuHD/)
+   - **Author:** Saito, Shunsuke and Simon, Tomas and Saragih, Jason and Joo, Hanbyul
+   - **Year:** 2020
+
+- **Library:** [TripoSR - A state-of-the-art open-source model for fast feedforward 3D reconstruction.](https://stability.ai/news/triposr-3d-generation)
+   - **Author:** Tripo AI and Stability AI
+   - **Year:** 2024
 
 # Troubleshooting
 
