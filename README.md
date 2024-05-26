@@ -2,6 +2,8 @@
 
 SculptMate is a Blender add-on that simplifies the process of generating meshes. It automates a significant part of the game development pipeline, allowing users to quickly create meshes from a single image.
 
+![Demo](assets/v02-Demo.gif)
+
 ## Features
 
 - Generate meshes of objects and humans from a single image.
