@@ -48,5 +48,5 @@ class PifuGenerator():
             print('Generation Complete')
             return 0
         except Exception as e:
-            print('[Generation Error]', e)
+            print('[TripoSR Generation Error]', e)
             return 2

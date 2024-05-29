@@ -2,7 +2,7 @@ bl_info = {
     "name": "SculptMate", 
     "description": "Generate a 3D Human Mesh from an image", 
     "author": "Shravan",
-    "version": (0, 2),
+    "version": (0, 2, 1),
     "blender": (3, 2, 0),
     "location": "Render Properties > SculptMate",
     "category": "3D View",
@@ -253,7 +253,7 @@ def register():
         import transformers
         dependencies_installed = True
     except ModuleNotFoundError as err:
-        print(err)
+        print('[Missing Module Error]', err)
         # Don't register other panels, operators etc.
         return
     

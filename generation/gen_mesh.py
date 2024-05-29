@@ -107,4 +107,4 @@ def gen_mesh(res, net, cuda, data, thresh=0.5, use_octree=True, components=False
         import_obj_blender(verts, faces, data['name'])
 
     except Exception as e:
-        print(e)
+        print('[PifuHD Generation Error]',e)

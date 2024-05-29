@@ -111,12 +111,13 @@ class Mesh_OT_Generate(DataStore, Operator):
         
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         img_name = os.path.splitext(os.path.basename(context.window_manager.input_image_path))[0]
-        print('Working on ', img_name)
+        print('[SculptMate Logging] Working on ', img_name)
 
         try:
             preprocessed, scale = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
         except Exception as e:
             self.report({"ERROR"}, 'Please view system console for details')
+            print('[Preprocessing Error]', e)
             return {'CANCELLED'}
 
         if preprocessed is None:
@@ -156,7 +157,7 @@ class GenerationWorker(DataStore, threading.Thread):
             object_gen.initiate_model()
             object_gen.generate_mesh(input_image=self.image, input_name=self.img_name)
         t2 = time.time()
-        print('Generation Time (s):', str(t2 - t1 + 1))
+        print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))
 
         # Enable buttons once generation is complete
         self.context.window_manager.message = ""
