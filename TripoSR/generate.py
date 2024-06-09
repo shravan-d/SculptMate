@@ -29,15 +29,14 @@ class TripoGenerator():
                 return 2
             return 0
 
-    def generate_mesh(self, input_image, input_name=None):
+    def generate_mesh(self, input_image, input_name=None, enable_texture=False):
         if self.model is None:
             return 1
         try:
             with torch.no_grad():
                 scene_codes = self.model([input_image], device=self.device)
 
-            self.model.extract_mesh(scene_codes, resolution=self.mc_resolution, mesh_name=input_name)
-            print('Generation Complete')
+            self.model.extract_mesh(scene_codes, resolution=self.mc_resolution, mesh_name=input_name, enable_texture=enable_texture)
             return 0
         except Exception as e:
             print('[Generation Error]', e)

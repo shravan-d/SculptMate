@@ -124,14 +124,51 @@ class TSR(BaseModule):
         self.isosurface_helper = MarchingCubeHelper(resolution)
 
 
-    def import_obj_blender(self, verts, faces, name='NewMesh'):
+    def import_obj_blender(self, verts, faces, vertex_colors=None, name='NewMesh'):
         mesh_data = bpy.data.meshes.new(name=name)
         mesh_data.from_pydata(verts, [], faces)
         new_object = bpy.data.objects.new(name=name, object_data=mesh_data)
         bpy.context.collection.objects.link(new_object)
 
+        if vertex_colors is not None:
+            if vertex_colors.shape[1] == 3:
+                ones_column = np.ones((vertex_colors.shape[0], 1))
+                vertex_colors = np.hstack((vertex_colors, ones_column))
+            
+            vertex_colors_name = f"{name}_VC"
+            mesh_data.vertex_colors.new(name=vertex_colors_name)
+            color_layer = mesh_data.vertex_colors[vertex_colors_name]
 
-    def extract_mesh(self, scene_codes, mesh_name='NewMesh', resolution: int = 256, threshold: float = 25.0):
+            # Assigning vertex colors
+            for poly in mesh_data.polygons:
+                for idx in poly.loop_indices:
+                    loop_vert_index = mesh_data.loops[idx].vertex_index
+                    color_layer.data[idx].color = vertex_colors[loop_vert_index]
+
+            mat = bpy.data.materials.new(name="VertexColorMaterial")
+            mesh_data.materials.append(mat)
+                
+            mat.use_nodes = True
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+
+            for node in nodes:
+                nodes.remove(node)
+
+            output_node = nodes.new(type='ShaderNodeOutputMaterial')
+            principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
+            vertex_color_node = nodes.new(type='ShaderNodeVertexColor')
+
+            vertex_color_node.layer_name = vertex_colors_name
+
+            links.new(vertex_color_node.outputs['Color'], principled_node.inputs['Base Color'])
+            links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
+
+            principled_node.inputs['Roughness'].default_value = 1
+            principled_node.inputs['IOR'].default_value = 1.00
+
+
+    def extract_mesh(self, scene_codes, enable_texture = False, mesh_name='NewMesh', resolution: int = 256, threshold: float = 25.0):
         self.set_marching_cubes_resolution(resolution)
         for scene_code in scene_codes:
             with torch.no_grad():
@@ -150,4 +187,14 @@ class TSR(BaseModule):
                 self.isosurface_helper.points_range,
                 (-self.renderer.cfg.radius, self.renderer.cfg.radius),
             )
-            self.import_obj_blender(v_pos.cpu().numpy(), t_pos_idx.cpu().numpy(), name=mesh_name)
+            color = None
+            if enable_texture:
+                with torch.no_grad():
+                    color = self.renderer.query_triplane(
+                        self.decoder,
+                        v_pos,
+                        scene_code,
+                    )["color"]
+                color = color.cpu().numpy()
+            
+            self.import_obj_blender(v_pos.cpu().numpy(), t_pos_idx.cpu().numpy(), color, name=mesh_name)
