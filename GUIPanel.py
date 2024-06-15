@@ -45,6 +45,12 @@ class MyProperties(bpy.types.PropertyGroup):
         default='other'
     ) # type: ignore
 
+    enable_textures: bpy.props.BoolProperty(
+        name='Transfer Textures', 
+        description="Transfer texture from the image to the generated model. Only works with 'Other' model type.",
+        default=False
+    ) # type: ignore
+
 
 class UI_PT_main(DataStore, bpy.types.Panel):
     bl_label = "SculptMate"
@@ -55,18 +61,20 @@ class UI_PT_main(DataStore, bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Transform your images into 3D meshes!")
+        layout.label(text="Transform images into 3D meshes!")
         layout.label(text="For the best results:")
-        layout.label(text="- The object is centered")
-        layout.label(text="- There is nothing in front of it")
-        layout.label(text="Let's goooo!")
+        layout.label(text="- Ensure one object per image")
+        layout.label(text="- Avoid occlusion")
         layout.separator()
         layout.prop(context.scene.my_props, "model_type", expand=True)
+        if context.scene.my_props.model_type == 'other':
+            layout.prop(context.scene.my_props, "enable_textures")
         layout.separator()
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
-            col = self.layout.box().column()
-            col.template_preview(bpy.data.textures[context.window_manager.current_texture_name])
+            img = bpy.data.images.load(context.window_manager.input_image_path, check_existing=True)
+            icon_id = bpy.types.UILayout.icon(img)
+            layout.box().row().template_icon(icon_value=icon_id, scale=9)
             layout.separator()
         if context.window_manager.message != "":
             label_multiline(layout, text=context.window_manager.message)
@@ -155,7 +163,7 @@ class GenerationWorker(DataStore, threading.Thread):
         elif self.context.scene.my_props.model_type == 'other':
             object_gen = TripoGenerator(self.device)
             object_gen.initiate_model()
-            object_gen.generate_mesh(input_image=self.image, input_name=self.img_name)
+            object_gen.generate_mesh(input_image=self.image, input_name=self.img_name, enable_texture=self.context.scene.my_props.enable_textures)
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))
 
