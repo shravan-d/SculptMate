@@ -3,9 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-checkpoints/
-generation/checkpoints/
 sculptmate_updater/
+
+*.onnx
+*.ckpt
+*.pt
+*.pth
 
 # C extensions
 *.so
