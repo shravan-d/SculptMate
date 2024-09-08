@@ -2,7 +2,7 @@ bl_info = {
     "name": "SculptMate", 
     "description": "Generate a 3D Human Mesh from an image", 
     "author": "Shravan",
-    "version": (0, 3, 0),
+    "version": (0, 5, 0),
     "blender": (3, 2, 0),
     "location": "Render Properties > SculptMate",
     "category": "3D View",
@@ -16,6 +16,7 @@ import sys
 import subprocess
 import threading
 import importlib
+import urllib.request
 from collections import namedtuple
 from .utils import label_multiline
 from . import addon_updater_ops
@@ -39,7 +40,11 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="jsonschema", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+checkpoint_files = ['/checkpoints/u2net.onnx', '/TripoSR/checkpoints/model.ckpt']
+
 dependencies_installed = False
+checkpoints_installed = False
 
 def import_module(module_name, global_name=None, reload=True):
     """
@@ -118,6 +123,7 @@ def install_and_import_module(module_name, package_name=None, global_name=None):
 class DataStore:
     bpy.types.Scene.buttons_enabled = bpy.props.BoolProperty(default=True)
     bpy.types.Scene.installation_progress = bpy.props.IntProperty(default=-1)
+    bpy.types.Scene.download_progress = bpy.props.IntProperty(default=-1)
 
     @classmethod
     def poll(cls, context):
@@ -132,20 +138,75 @@ class Warning_PT_panel(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return not dependencies_installed
+        return not (dependencies_installed and checkpoints_installed)
 
     def draw(self, context):
         layout = self.layout
         
-        label_multiline(layout, text=f"Please install the missing dependencies for the {bl_info.get('name')} add-on. To do so:")
-        label_multiline(layout, text=f"- Open the add-on preferences (Edit > Preferences > Add-ons)")
-        label_multiline(layout, text=f"- Press the \"Install\" button")
+        label_multiline(layout, text=f"Please install the missing dependencies for the {bl_info.get('name')} add-on.")
+        label_multiline(layout, text=f"- You can do this via the add-on preferences (Edit > Preferences > Add-ons)")
         layout.separator()
-        label_multiline(layout, text=f"This will install the required python dependencies and you'll be all set to generate character meshes!")
+        label_multiline(layout, text=f"This will install the required python dependencies and checkpoint files.")
         layout.separator()
-        label_multiline(layout, text=f"If you encounter an error, Blender may have to be started with elevated permissions in order to install i.e. 'Run as Administrator'")
+        label_multiline(layout, text=f"If you encounter an error, Blender may have to be started with elevated permissions i.e. 'Run as Administrator'")
 
+class Download_checkpoints(DataStore, bpy.types.Operator):
+    bl_idname = "example.download_checkpoints"
+    bl_label = "Download Image2Mesh checkpoint"
+    bl_description = ("Downloads the required model checkpoints required for generation. "
+                      "Internet connection is required. Expected to take ~2 minutes.")
+    bl_options = {"REGISTER", "INTERNAL"}
 
+    @classmethod
+    def poll(self, context):
+        # Deactivate when checkpoints have been installed
+        return not checkpoints_installed and context.scene.buttons_enabled
+    
+    def install_complete_callback(self):
+        bpy.context.scene.download_progress = -1
+        global checkpoints_installed
+        checkpoints_installed = True
+
+        if dependencies_installed:
+            from . import GUIPanel
+            GUIPanel.register()
+    
+    def install_error_callback(self):
+        bpy.context.scene.download_progress = -2
+
+    def execute(self, context):
+        # Install dependencies in background thread so Blender doesn't hang
+        thread = DownloadWorker(self, self.install_complete_callback, self.install_error_callback, context, 'Image2Mesh')
+        thread.start()
+
+        return {"FINISHED"}
+
+class DownloadWorker(threading.Thread):
+
+    def __init__(self, parent_cls, finish_callback, error_callback, context, download_type):
+        self.parent_cls = parent_cls
+        self.finish_callback = finish_callback
+        self.error_callback = error_callback
+        self.context = context
+        self.download_type = download_type
+        threading.Thread.__init__(self)
+
+    def run(self):
+        self.context.scene.buttons_enabled = False
+        try:
+            self.context.scene.download_progress = 0
+            if self.download_type == 'Image2Mesh':
+                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/u2net.onnx", ROOT_DIR + "/checkpoints/u2net.onnx")
+                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/model.ckpt", ROOT_DIR + "/TripoSR/checkpoints/model.ckpt")
+            else:
+                pass
+        except Exception as err:
+            print('[Download Error]', err)
+            self.context.scene.buttons_enabled = True
+            self.error_callback()
+            return
+        self.finish_callback()
+        self.context.scene.buttons_enabled = True
 
 class Install_dependencies(DataStore, bpy.types.Operator):
     bl_idname = "example.install_dependencies"
@@ -163,9 +224,10 @@ class Install_dependencies(DataStore, bpy.types.Operator):
         bpy.context.scene.installation_progress = -1
         global dependencies_installed
         dependencies_installed = True
-
-        from . import GUIPanel
-        GUIPanel.register()
+        
+        if checkpoints_installed:
+            from . import GUIPanel
+            GUIPanel.register()
     
     def install_error_callback(self):
         bpy.context.scene.installation_progress = -2
@@ -222,15 +284,28 @@ class MyPreferences(bpy.types.AddonPreferences):
             layout.label(text='Installation Failed. Please check system console for details.')
         addon_updater_ops.update_settings_ui_condensed(self, context)
 
+        row = layout.row()
+        col = row.column()
+        col.operator(Download_checkpoints.bl_idname, icon="DOWNARROW_HLT")
+        col = row.column()
+        col.operator(Download_checkpoints.bl_idname, icon="DOWNARROW_HLT")
+        if context.scene.download_progress == 0:
+            layout.label(text='Downloading')
+        if context.scene.download_progress == -2:
+            layout.label(text='Download Failed. Please check system console for details.')
+
 
 preference_classes = (Warning_PT_panel,
                       Install_dependencies,
+                      Download_checkpoints,
                       MyPreferences)
 
 
 def register():
     global dependencies_installed
     dependencies_installed = False
+    global checkpoints_installed
+    checkpoints_installed = False
     addon_updater_ops.register(bl_info)
 
     for cls in preference_classes:
@@ -256,7 +331,13 @@ def register():
         print('[Missing Module Error]', err)
         # Don't register other panels, operators etc.
         return
-    
+
+    for path in checkpoint_files:
+        if not os.path.isfile(ROOT_DIR + path):
+            print('[Missing Checkpoints Error] Please download checkpoints from the Preferences and ensure they are placed in the right directories.')
+            return
+    checkpoints_installed = True
+
     import faulthandler
     faulthandler.enable()
     from . import GUIPanel
