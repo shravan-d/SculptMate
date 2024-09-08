@@ -9,7 +9,6 @@ import threading
 from .preprocessing import preprocess_image
 from .utils import label_multiline
 from .TripoSR.generate import TripoGenerator
-from .generation.generate import PifuGenerator
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,16 +34,6 @@ class DataStore:
 
 
 class MyProperties(bpy.types.PropertyGroup):
-    model_type: bpy.props.EnumProperty(
-        name="Model Type",
-        description="Select the category of your mesh",
-        items=[
-            ('human', "Human", "Generate a human mesh"),
-            ('other', "Other", "Generate other objects")
-        ],
-        default='other'
-    ) # type: ignore
-
     enable_textures: bpy.props.BoolProperty(
         name='Transfer Textures', 
         description="Transfer texture from the image to the generated model. Only works with 'Other' model type.",
@@ -66,10 +55,7 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.label(text="- Ensure one object per image")
         layout.label(text="- Avoid occlusion")
         layout.separator()
-        layout.prop(context.scene.my_props, "model_type", expand=True)
-        if context.scene.my_props.model_type == 'other':
-            layout.prop(context.scene.my_props, "enable_textures")
-        layout.separator()
+        layout.prop(context.scene.my_props, "enable_textures")
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
             img = bpy.data.images.load(context.window_manager.input_image_path, check_existing=True)
@@ -156,14 +142,9 @@ class GenerationWorker(DataStore, threading.Thread):
 
         # Generate mesh based on selected model type
         t1 = time.time()
-        if self.context.scene.my_props.model_type == 'human':
-            human_gen = PifuGenerator(self.device)
-            human_gen.initiate_model()
-            human_gen.generate_mesh(input_image=self.image, input_name=self.img_name, scale=self.scale)
-        elif self.context.scene.my_props.model_type == 'other':
-            object_gen = TripoGenerator(self.device)
-            object_gen.initiate_model()
-            object_gen.generate_mesh(input_image=self.image, input_name=self.img_name, enable_texture=self.context.scene.my_props.enable_textures)
+        object_gen = TripoGenerator(self.device)
+        object_gen.initiate_model()
+        object_gen.generate_mesh(input_image=self.image, input_name=self.img_name, enable_texture=self.context.scene.my_props.enable_textures)
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))
 

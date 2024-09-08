@@ -152,7 +152,7 @@ class Warning_PT_panel(bpy.types.Panel):
 
 class Download_checkpoints(DataStore, bpy.types.Operator):
     bl_idname = "example.download_checkpoints"
-    bl_label = "Download Image2Mesh checkpoint"
+    bl_label = "Download Image2Mesh model"
     bl_description = ("Downloads the required model checkpoints required for generation. "
                       "Internet connection is required. Expected to take ~2 minutes.")
     bl_options = {"REGISTER", "INTERNAL"}
@@ -286,9 +286,9 @@ class MyPreferences(bpy.types.AddonPreferences):
 
         row = layout.row()
         col = row.column()
-        col.operator(Download_checkpoints.bl_idname, icon="DOWNARROW_HLT")
-        col = row.column()
-        col.operator(Download_checkpoints.bl_idname, icon="DOWNARROW_HLT")
+        col.operator(Download_checkpoints.bl_idname)
+        # col = row.column()
+        # col.operator(Download_checkpoints.bl_idname)
         if context.scene.download_progress == 0:
             layout.label(text='Downloading')
         if context.scene.download_progress == -2:
