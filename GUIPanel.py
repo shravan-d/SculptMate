@@ -41,7 +41,7 @@ class MyProperties(bpy.types.PropertyGroup):
             ('lean', "Lean", "Generate a mesh"),
             ('fast', "Better Geometry", "Generates meshes with mentioned geometry")
         ],
-        default='fast'
+        default='lean'
     ) # type: ignore
 
     remesh_type: bpy.props.EnumProperty(
@@ -56,7 +56,7 @@ class MyProperties(bpy.types.PropertyGroup):
         
     enable_textures: bpy.props.BoolProperty(
         name='Transfer Textures', 
-        description="Transfer texture from the image to the generated model. Only works with 'Other' model type.",
+        description="Transfer texture from the image to the generated model.",
         default=False
     ) # type: ignore
 
@@ -76,7 +76,20 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.label(text="- Avoid occlusion")
         layout.separator()
 
-        layout.prop(context.scene.my_props, "model_type", expand=True)
+        my_props = context.scene.my_props
+        items = my_props.bl_rna.properties["model_type"].enum_items_static
+        row = layout.row(align=True)
+        for item in items:
+            identifier = item.identifier  
+            item_layout = row.row(align=True)  
+            item_layout.prop_enum(my_props, "model_type", identifier)
+            if identifier == 'lean' and os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
+                item_layout.enabled = True
+            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/fast-3d/checkpoints/model.safetensors'):
+                item_layout.enabled = True
+            else:
+                item_layout.enabled = False
+
         layout.separator()
         if context.scene.my_props.model_type == 'lean':
             layout.prop(context.scene.my_props, "enable_textures")
