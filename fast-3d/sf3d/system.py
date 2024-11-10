@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange
-from huggingface_hub import hf_hub_download
-from jaxtyping import Float
 from omegaconf import OmegaConf
 from PIL import Image
 from safetensors.torch import load_model
@@ -87,12 +85,7 @@ class SF3D(BaseModule):
             config_path = os.path.join(pretrained_model_name_or_path, config_name)
             weight_path = os.path.join(pretrained_model_name_or_path, weight_name)
         else:
-            config_path = hf_hub_download(
-                repo_id=pretrained_model_name_or_path, filename=config_name
-            )
-            weight_path = hf_hub_download(
-                repo_id=pretrained_model_name_or_path, filename=weight_name
-            )
+            raise FileNotFoundError('Checkpoint directory given doesnt exist')
 
         cfg = OmegaConf.load(config_path)
         OmegaConf.resolve(cfg)

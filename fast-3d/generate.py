@@ -1,9 +1,7 @@
 import torch
 import os
 from contextlib import nullcontext
-from PIL import Image
 from sf3d.system import SF3D
-from sf3d.utils import get_device, remove_background, resize_foreground
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
