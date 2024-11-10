@@ -34,6 +34,26 @@ class DataStore:
 
 
 class MyProperties(bpy.types.PropertyGroup):
+    model_type: bpy.props.EnumProperty(
+        name="Model Type",
+        description="Select the model to use",
+        items=[
+            ('lean', "Lean", "Generate a mesh"),
+            ('fast', "Better Geometry", "Generates meshes with mentioned geometry")
+        ],
+        default='fast'
+    ) # type: ignore
+
+    remesh_type: bpy.props.EnumProperty(
+        name="Poly Type",
+        description="Select the type of polys in your mesh",
+        items=[
+            ('triangle', "Triangle", "Faces of the mesh are triangles"),
+            ('quad', "Quad", "Faces of the mesh are quads")
+        ],
+        default='triangle'
+    ) # type: ignore
+        
     enable_textures: bpy.props.BoolProperty(
         name='Transfer Textures', 
         description="Transfer texture from the image to the generated model. Only works with 'Other' model type.",
@@ -55,7 +75,14 @@ class UI_PT_main(DataStore, bpy.types.Panel):
         layout.label(text="- Ensure one object per image")
         layout.label(text="- Avoid occlusion")
         layout.separator()
-        layout.prop(context.scene.my_props, "enable_textures")
+
+        layout.prop(context.scene.my_props, "model_type", expand=True)
+        layout.separator()
+        if context.scene.my_props.model_type == 'lean':
+            layout.prop(context.scene.my_props, "enable_textures")
+        if context.scene.my_props.model_type == 'fast':
+            layout.prop(context.scene.my_props, "remesh_type", expand=True)
+    
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
             img = bpy.data.images.load(context.window_manager.input_image_path, check_existing=True)

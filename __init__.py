@@ -44,7 +44,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 checkpoint_files = ['/checkpoints/u2net.onnx', '/TripoSR/checkpoints/model.ckpt']
 
 dependencies_installed = False
-checkpoints_installed = False
+lean_checkpoint_found = False
+fast_checkpoint_found = False
 
 def import_module(module_name, global_name=None, reload=True):
     """
@@ -138,7 +139,8 @@ class Warning_PT_panel(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return not (dependencies_installed and checkpoints_installed)
+        checkpoint_found = lean_checkpoint_found or fast_checkpoint_found
+        return not (dependencies_installed and checkpoint_found)
 
     def draw(self, context):
         layout = self.layout
@@ -150,9 +152,9 @@ class Warning_PT_panel(bpy.types.Panel):
         layout.separator()
         label_multiline(layout, text=f"If you encounter an error, Blender may have to be started with elevated permissions i.e. 'Run as Administrator'")
 
-class Download_checkpoints(DataStore, bpy.types.Operator):
-    bl_idname = "example.download_checkpoints"
-    bl_label = "Download Image2Mesh model"
+class Download_Lean_Model(DataStore, bpy.types.Operator):
+    bl_idname = "example.download_checkpoint_lean"
+    bl_label = "Get Checkpoint (Lean)"
     bl_description = ("Downloads the required model checkpoints required for generation. "
                       "Internet connection is required. Expected to take ~2 minutes.")
     bl_options = {"REGISTER", "INTERNAL"}
@@ -160,12 +162,12 @@ class Download_checkpoints(DataStore, bpy.types.Operator):
     @classmethod
     def poll(self, context):
         # Deactivate when checkpoints have been installed
-        return not checkpoints_installed and context.scene.buttons_enabled
+        return not lean_checkpoint_found and context.scene.buttons_enabled
     
     def install_complete_callback(self):
         bpy.context.scene.download_progress = -1
-        global checkpoints_installed
-        checkpoints_installed = True
+        global lean_checkpoint_found
+        lean_checkpoint_found = True
 
         if dependencies_installed:
             from . import GUIPanel
@@ -176,11 +178,42 @@ class Download_checkpoints(DataStore, bpy.types.Operator):
 
     def execute(self, context):
         # Install dependencies in background thread so Blender doesn't hang
-        thread = DownloadWorker(self, self.install_complete_callback, self.install_error_callback, context, 'Image2Mesh')
+        thread = DownloadWorker(self, self.install_complete_callback, self.install_error_callback, context, 'Trippo')
         thread.start()
 
         return {"FINISHED"}
 
+class Download_Fast_Model(DataStore, bpy.types.Operator):
+    bl_idname = "example.download_checkpoint_fast"
+    bl_label = "Get Checkpoint (Better Geometry)"
+    bl_description = ("Downloads the required model checkpoints required for generation. "
+                      "Internet connection is required. Expected to take ~2 minutes.")
+    bl_options = {"REGISTER", "INTERNAL"}
+
+    @classmethod
+    def poll(self, context):
+        # Deactivate when checkpoints have been installed
+        return not fast_checkpoint_found and context.scene.buttons_enabled
+    
+    def install_complete_callback(self):
+        bpy.context.scene.download_progress = -1
+        global lean_checkpoint_found
+        lean_checkpoint_found = True
+
+        if dependencies_installed:
+            from . import GUIPanel
+            GUIPanel.register()
+    
+    def install_error_callback(self):
+        bpy.context.scene.download_progress = -2
+
+    def execute(self, context):
+        # Install dependencies in background thread so Blender doesn't hang
+        thread = DownloadWorker(self, self.install_complete_callback, self.install_error_callback, context, 'Fast')
+        thread.start()
+
+        return {"FINISHED"}
+    
 class DownloadWorker(threading.Thread):
 
     def __init__(self, parent_cls, finish_callback, error_callback, context, download_type):
@@ -195,9 +228,14 @@ class DownloadWorker(threading.Thread):
         self.context.scene.buttons_enabled = False
         try:
             self.context.scene.download_progress = 0
-            if self.download_type == 'Image2Mesh':
+            
+            if not os.path.isfile(ROOT_DIR + '/checkpoints/u2net.onnx'):
                 urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/u2net.onnx", ROOT_DIR + "/checkpoints/u2net.onnx")
+                
+            if self.download_type == 'Trippo':
                 urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/model.ckpt", ROOT_DIR + "/TripoSR/checkpoints/model.ckpt")
+            elif self.download_type == 'Fast':
+                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.5/model.safetensors", ROOT_DIR + "/fast-3d/checkpoints/model.safetensors")
             else:
                 pass
         except Exception as err:
@@ -225,7 +263,7 @@ class Install_dependencies(DataStore, bpy.types.Operator):
         global dependencies_installed
         dependencies_installed = True
         
-        if checkpoints_installed:
+        if lean_checkpoint_found:
             from . import GUIPanel
             GUIPanel.register()
     
@@ -282,30 +320,34 @@ class MyPreferences(bpy.types.AddonPreferences):
             layout.label(text=f'Installation Progress: {int(100*context.scene.installation_progress / len(dependencies))}%')
         if context.scene.installation_progress == -2:
             layout.label(text='Installation Failed. Please check system console for details.')
-        addon_updater_ops.update_settings_ui_condensed(self, context)
 
         row = layout.row()
         col = row.column()
-        col.operator(Download_checkpoints.bl_idname)
-        # col = row.column()
-        # col.operator(Download_checkpoints.bl_idname)
+        col.operator(Download_Lean_Model.bl_idname)
+        col = row.column()
+        col.operator(Download_Fast_Model.bl_idname)
         if context.scene.download_progress == 0:
             layout.label(text='Downloading')
         if context.scene.download_progress == -2:
             layout.label(text='Download Failed. Please check system console for details.')
 
+        addon_updater_ops.update_settings_ui_condensed(self, context)
+
 
 preference_classes = (Warning_PT_panel,
                       Install_dependencies,
-                      Download_checkpoints,
+                      Download_Lean_Model,
+                      Download_Fast_Model,
                       MyPreferences)
 
 
 def register():
     global dependencies_installed
     dependencies_installed = False
-    global checkpoints_installed
-    checkpoints_installed = False
+    global lean_checkpoint_found
+    lean_checkpoint_found = False
+    global fast_checkpoint_found
+    fast_checkpoint_found = False
     addon_updater_ops.register(bl_info)
 
     for cls in preference_classes:
@@ -332,11 +374,14 @@ def register():
         # Don't register other panels, operators etc.
         return
 
-    for path in checkpoint_files:
-        if not os.path.isfile(ROOT_DIR + path):
-            print('[Missing Checkpoints Error] Please download checkpoints from the Preferences and ensure they are placed in the right directories.')
-            return
-    checkpoints_installed = True
+    if os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
+        lean_checkpoint_found = True
+    if os.path.isfile(ROOT_DIR + '/fast-3d/checkpoints/model.safetensors'):
+        fast_checkpoint_found = True
+
+    if not fast_checkpoint_found and not lean_checkpoint_found:
+        print('[Missing Checkpoints Error] Please download checkpoints from the Preferences and ensure they are placed in the right directories.')
+        return
 
     import faulthandler
     faulthandler.enable()
