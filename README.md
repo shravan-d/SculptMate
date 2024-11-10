@@ -16,11 +16,12 @@ SculptMate is a Blender add-on that simplifies the process of generating meshes.
 
 ## Installation
 
-1. Download the latest release zip file from the [Releases](https://github.com/shravan-d/SculptMate/releases) page.
+1. Download the latest release zip file from the blue button name 'Code' on top of this page.
 2. In Blender, go to `Edit` > `Preferences` > `Add-Ons`.
 3. Click on `Install` and select the downloaded zip file.
 4. Enable the add-on by checking the checkbox next to its name.
-5. Install dependencies by clicking the provided button.
+5. Inside the add-on in the preferences, you will have to install the required dependancies. You might have to start Blender with admin privileges for this step, depending on your Blender installation path.
+![Samples](assets/preferences.png)
 
 ## Usage
 
@@ -40,10 +41,6 @@ Contributions are welcome! Feel free to fork the repository and submit pull requ
 ## Third-Party Libraries
 
 This project utilizes the following third-party libraries:
-
-- **Library:** [PIFuHD: Multi-Level Pixel-Aligned Implicit Function for High-Resolution 3D Human Digitization](https://shunsukesaito.github.io/PIFuHD/)
-   - **Author:** Saito, Shunsuke and Simon, Tomas and Saragih, Jason and Joo, Hanbyul
-   - **Year:** 2020
 
 - **Library:** [TripoSR - A state-of-the-art open-source model for fast feedforward 3D reconstruction.](https://stability.ai/news/triposr-3d-generation)
    - **Author:** Tripo AI and Stability AI
