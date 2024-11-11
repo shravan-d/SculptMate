@@ -70,29 +70,6 @@ def image_preprocess_nosave(input_image, lower_contrast=True, rescale=True):
    return Image.fromarray((rgb * 255).astype(np.uint8)), scale
 
 
-def preprocess_image2(img_path, device):
-    from segment_anything import SamPredictor
-    input_raw = Image.open(img_path)
-    input_raw.thumbnail(image_size, Image.Resampling.LANCZOS)
-
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path=ROOT_DIR+"/checkpoints/yolov5s.pt", trust_repo=True) 
-    results = model(input_raw)
-    output = results.pandas().xyxy[0]
-    objects = output[np.logical_and(output['name'] == 'person', output['confidence'] > 0.8)]
-    try:
-        bbox = [int(objects.xmin.iloc[0]), int(objects.ymin.iloc[0]), int(objects.xmax.iloc[0]), int(objects.ymax.iloc[0])]
-    except IndexError:
-        print('Unable to find a person in the image, please try another one')
-        return None, -1
-    sam_model = get_sam_model(device)
-    sam_predictor = SamPredictor(sam_model)
-
-    image_sam = sam_out_nosave(sam_predictor, input_raw.convert("RGB"), bbox)
-
-    input_image, scale = image_preprocess_nosave(image_sam, lower_contrast=True, rescale=True)
-    return input_image, scale
-
-
 def preprocess_image(img_path, ratio=0.85):
     # os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
     input_raw = Image.open(img_path)

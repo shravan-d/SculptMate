@@ -9,9 +9,13 @@ import threading
 from .preprocessing import preprocess_image
 from .utils import label_multiline
 from .TripoSR.generate import TripoGenerator
+from .StableFast.generate import Fast3DGenerator
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+trippo_generator = None
+fast_generator = None
+
 
 def create_image_textures(image_path, texture_name):
     ideal_image = bpy.data.images.load(image_path, check_existing=True) 
@@ -85,7 +89,7 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             item_layout.prop_enum(my_props, "model_type", identifier)
             if identifier == 'lean' and os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
                 item_layout.enabled = True
-            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/fast-3d/checkpoints/model.safetensors'):
+            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors'):
                 item_layout.enabled = True
             else:
                 item_layout.enabled = False
@@ -155,7 +159,7 @@ class Mesh_OT_Generate(DataStore, Operator):
             return {'CANCELLED'}
 
         if preprocessed is None:
-            context.window_manager.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
+            context.window_manager.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find an object in the image."
             return {'CANCELLED'}
         
         # Run the generation on a different thread so Blender doesn't hang
@@ -182,9 +186,26 @@ class GenerationWorker(DataStore, threading.Thread):
 
         # Generate mesh based on selected model type
         t1 = time.time()
-        object_gen = TripoGenerator(self.device)
-        object_gen.initiate_model()
-        object_gen.generate_mesh(input_image=self.image, input_name=self.img_name, enable_texture=self.context.scene.my_props.enable_textures)
+        if self.context.scene.my_props.model_type == 'lean':
+            global trippo_generator
+            if trippo_generator is None:
+                trippo_generator = TripoGenerator(self.device)
+                trippo_generator.initiate_model()
+            trippo_generator.generate_mesh(
+                input_image=self.image, 
+                input_name=self.img_name, 
+                enable_texture=self.context.scene.my_props.enable_textures
+            )
+        if self.context.scene.my_props.model_type == 'fast':
+            global fast_generator
+            if fast_generator is None:
+                fast_generator = Fast3DGenerator(self.device)
+                fast_generator.initiate_model()
+            fast_generator.generate_mesh(
+                input_image=self.image, 
+                input_name=self.img_name, 
+                remesh_option=self.context.scene.my_props.remesh_type
+            )
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))
 

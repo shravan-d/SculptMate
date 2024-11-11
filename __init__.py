@@ -28,7 +28,6 @@ Dependency = namedtuple("Dependency", ["module", "package", "name"])
 # of the arguments. DO NOT use this to import other parts of your Python add-on, import them as usual with an
 # "import" statement.
 dependencies = (Dependency(module="numpy", package=None, name=None),
-                Dependency(module="pandas", package=None, name=None),
                 Dependency(module="pillow", package=None, name=None),
                 Dependency(module="torch", package=None, name=None),
                 Dependency(module="torchvision", package=None, name=None),
@@ -235,7 +234,7 @@ class DownloadWorker(threading.Thread):
             if self.download_type == 'Trippo':
                 urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/model.ckpt", ROOT_DIR + "/TripoSR/checkpoints/model.ckpt")
             elif self.download_type == 'Fast':
-                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.5/model.safetensors", ROOT_DIR + "/fast-3d/checkpoints/model.safetensors")
+                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.5/model.safetensors", ROOT_DIR + "/StableFast/checkpoints/model.safetensors")
             else:
                 pass
         except Exception as err:
@@ -360,7 +359,6 @@ def register():
         import torch
         import torchvision
         import numpy
-        import pandas
         import jsonschema
         import skimage
         import onnxruntime
@@ -376,7 +374,7 @@ def register():
 
     if os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
         lean_checkpoint_found = True
-    if os.path.isfile(ROOT_DIR + '/fast-3d/checkpoints/model.safetensors'):
+    if os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors'):
         fast_checkpoint_found = True
 
     if not fast_checkpoint_found and not lean_checkpoint_found:

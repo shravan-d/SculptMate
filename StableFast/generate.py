@@ -1,7 +1,7 @@
 import torch
 import os
 from contextlib import nullcontext
-from sf3d.system import SF3D
+from .sf3d.system import SF3D
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 

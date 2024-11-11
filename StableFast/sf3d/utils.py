@@ -6,7 +6,7 @@ import rembg
 import torch
 from PIL import Image
 
-import sf3d.models.utils as sf3d_utils
+from .models.utils import get_intrinsic_from_fov
 
 
 def get_device():
@@ -22,7 +22,7 @@ def get_device():
 
 
 def create_intrinsic_from_fov_deg(fov_deg: float, cond_height: int, cond_width: int):
-    intrinsic = sf3d_utils.get_intrinsic_from_fov(
+    intrinsic = get_intrinsic_from_fov(
         np.deg2rad(fov_deg),
         H=cond_height,
         W=cond_width,

@@ -7,7 +7,7 @@ from einops import rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor
 
-from sf3d.models.utils import BaseModule
+from ..utils import BaseModule
 
 
 class TriplaneLearnablePositionalEmbedding(BaseModule):

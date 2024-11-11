@@ -10,8 +10,8 @@ from torch import Tensor
 from torch.autograd import Function
 from torch.cuda.amp import custom_bwd, custom_fwd
 
-from sf3d.models.utils import BaseModule, normalize
-from sf3d.utils import get_device
+from .utils import BaseModule, normalize
+from ..utils import get_device
 
 
 def conditional_decorator(decorator_with_args, condition, *args, **kwargs):

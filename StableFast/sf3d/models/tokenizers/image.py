@@ -7,9 +7,9 @@ from einops import rearrange
 from jaxtyping import Float
 from torch import Tensor
 
-from sf3d.models.tokenizers.dinov2 import Dinov2Model
-from sf3d.models.transformers.attention import Modulation
-from sf3d.models.utils import BaseModule
+from .dinov2 import Dinov2Model
+from ..transformers.attention import Modulation
+from ..utils import BaseModule
 
 
 class DINOV2SingleImageTokenizer(BaseModule):

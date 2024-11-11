@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from sf3d.models.utils import BaseModule
+from ..utils import BaseModule
 
 
 class GEGLU(nn.Module):

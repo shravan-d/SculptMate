@@ -4,7 +4,7 @@ from typing import List
 import torch
 import torch.nn as nn
 
-from sf3d.models.utils import BaseModule
+from .utils import BaseModule
 
 
 class LinearCameraEmbedder(BaseModule):

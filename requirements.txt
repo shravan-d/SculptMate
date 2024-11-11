@@ -2,7 +2,6 @@ numpy
 pillow
 torch
 torchvision
-pandas
 scikit-image
 onnxruntime
 einops==0.7.0

@@ -12,7 +12,7 @@ import trimesh
 from jaxtyping import Float, Integer
 from torch import Tensor
 
-from sf3d.models.utils import dot
+from .utils import dot
 
 try:
     from uv_unwrapper import Unwrapper
