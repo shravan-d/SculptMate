@@ -57,10 +57,21 @@ class MyProperties(bpy.types.PropertyGroup):
         ],
         default='triangle'
     ) # type: ignore
+
+    vertex_simplification: bpy.props.EnumProperty(
+        name="Vertex Count",
+        description="Controls the number of vertices in your mesh",
+        items=[
+            ('low', "Low", ""),
+            ('medium', "Medium", ""),
+            ('high', "High", ""),
+        ],
+        default='high'
+    ) # type: ignore
         
     enable_textures: bpy.props.BoolProperty(
         name='Transfer Textures', 
-        description="Transfer texture from the image to the generated model.",
+        description="Transfer texture from the image to your mesh.",
         default=False
     ) # type: ignore
 
@@ -99,6 +110,8 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             layout.prop(context.scene.my_props, "enable_textures")
         if context.scene.my_props.model_type == 'fast':
             layout.prop(context.scene.my_props, "remesh_type", expand=True)
+            layout.label(text="Vertex Count")
+            layout.prop(context.scene.my_props, "vertex_simplification", expand=True)
     
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
@@ -152,7 +165,11 @@ class Mesh_OT_Generate(DataStore, Operator):
         print('[SculptMate Logging] Working on ', img_name)
 
         try:
-            preprocessed, scale = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
+            if context.scene.my_props.model_type == 'lean':
+                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
+            elif context.scene.my_props.model_type == 'fast':
+                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.85, alpha=True)
+
         except Exception as e:
             self.report({"ERROR"}, 'Please view system console for details')
             print('[Preprocessing Error]', e)
@@ -163,7 +180,7 @@ class Mesh_OT_Generate(DataStore, Operator):
             return {'CANCELLED'}
         
         # Run the generation on a different thread so Blender doesn't hang
-        thread = GenerationWorker(device, preprocessed, scale, img_name, context)
+        thread = GenerationWorker(device, preprocessed, img_name, context)
         thread.start()
 
         return {'FINISHED'}
@@ -171,10 +188,9 @@ class Mesh_OT_Generate(DataStore, Operator):
 
 class GenerationWorker(DataStore, threading.Thread):
 
-    def __init__(self, device, image, scale, name, context):
+    def __init__(self, device, image, name, context):
         self.device = device
         self.image = image
-        self.scale = scale
         self.img_name = name
         self.context = context
         threading.Thread.__init__(self)
@@ -196,7 +212,7 @@ class GenerationWorker(DataStore, threading.Thread):
                 input_name=self.img_name, 
                 enable_texture=self.context.scene.my_props.enable_textures
             )
-        if self.context.scene.my_props.model_type == 'fast':
+        elif self.context.scene.my_props.model_type == 'fast':
             global fast_generator
             if fast_generator is None:
                 fast_generator = Fast3DGenerator(self.device)
@@ -204,7 +220,8 @@ class GenerationWorker(DataStore, threading.Thread):
             fast_generator.generate_mesh(
                 input_image=self.image, 
                 input_name=self.img_name, 
-                remesh_option=self.context.scene.my_props.remesh_type
+                remesh_option=self.context.scene.my_props.remesh_type,
+                vertex_simplification_factor=self.context.scene.my_props.vertex_simplification,
             )
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))

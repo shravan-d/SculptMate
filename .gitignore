@@ -8,6 +8,7 @@ sculptmate_updater/
 *.onnx
 *.ckpt
 *.pt
+*.safetensors
 *.pth
 
 # C extensions

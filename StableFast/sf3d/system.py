@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from omegaconf import OmegaConf
+from jaxtyping import Float
 from PIL import Image
 from safetensors.torch import load_model
 from torch import Tensor
@@ -26,18 +27,28 @@ from .models.utils import (
     normalize,
     scale_tensor,
 )
+
+from .models.tokenizers.image import DINOV2SingleImageTokenizer
+from .models.tokenizers.triplane import TriplaneLearnablePositionalEmbedding
+from .models.transformers.backbone import TwoStreamInterleaveTransformer
+from .models.network import PixelShuffleUpsampleNetwork, MaterialMLP
+from .models.global_estimator.multi_head_estimator import MultiHeadEstimator
+from .models.image_estimator.clip_based_estimator import ClipBasedHeadEstimator
+from .models.camera import LinearCameraEmbedder
+
+
 from .utils import create_intrinsic_from_fov_deg, default_cond_c2w, get_device
 
-try:
-    from texture_baker import TextureBaker
-except ImportError:
-    import logging
+# try:
+#     from texture_baker import TextureBaker
+# except ImportError:
+#     import logging
 
-    logging.warning(
-        "Could not import texture_baker. Please install it via `pip install texture-baker/`"
-    )
-    # Exit early to avoid further errors
-    raise ImportError("texture_baker not found")
+#     logging.warning(
+#         "Could not import texture_baker. Please install it via `pip install texture-baker/`"
+#     )
+#     # Exit early to avoid further errors
+#     raise ImportError("texture_baker not found")
 
 
 class SF3D(BaseModule):
@@ -98,22 +109,22 @@ class SF3D(BaseModule):
         return next(self.parameters()).device
 
     def configure(self):
-        self.image_tokenizer = find_class(self.cfg.image_tokenizer_cls)(
+        self.image_tokenizer = DINOV2SingleImageTokenizer(
             self.cfg.image_tokenizer
         )
-        self.tokenizer = find_class(self.cfg.tokenizer_cls)(self.cfg.tokenizer)
-        self.camera_embedder = find_class(self.cfg.camera_embedder_cls)(
+        self.tokenizer = TriplaneLearnablePositionalEmbedding(self.cfg.tokenizer)
+        self.camera_embedder = LinearCameraEmbedder(
             self.cfg.camera_embedder
         )
-        self.backbone = find_class(self.cfg.backbone_cls)(self.cfg.backbone)
-        self.post_processor = find_class(self.cfg.post_processor_cls)(
+        self.backbone = TwoStreamInterleaveTransformer(self.cfg.backbone)
+        self.post_processor = PixelShuffleUpsampleNetwork(
             self.cfg.post_processor
         )
-        self.decoder = find_class(self.cfg.decoder_cls)(self.cfg.decoder)
-        self.image_estimator = find_class(self.cfg.image_estimator_cls)(
+        self.decoder = MaterialMLP(self.cfg.decoder)
+        self.image_estimator = ClipBasedHeadEstimator(
             self.cfg.image_estimator
         )
-        self.global_estimator = find_class(self.cfg.global_estimator_cls)(
+        self.global_estimator = MultiHeadEstimator(
             self.cfg.global_estimator
         )
 
@@ -139,7 +150,7 @@ class SF3D(BaseModule):
             ),
         )
 
-        self.baker = TextureBaker()
+        # self.baker = TextureBaker()
         self.image_processor = ImageProcessor()
 
     def triplane_to_meshes(
@@ -241,7 +252,7 @@ class SF3D(BaseModule):
         image: Union[Image.Image, List[Image.Image]],
         bake_resolution: int,
         remesh: Literal["none", "triangle", "quad"] = "none",
-        vertex_count: int = -1,
+        vertex_simplification_factor: Literal['high', 'medium', 'low'] = 'high',
         estimate_illumination: bool = False,
     ):
         if isinstance(image, list):
@@ -278,7 +289,7 @@ class SF3D(BaseModule):
         }
 
         meshes, global_dict = self.generate_mesh(
-            batch, bake_resolution, remesh, vertex_count, estimate_illumination
+            batch, bake_resolution, remesh, vertex_simplification_factor, estimate_illumination
         )
         if batch_size == 1:
             return meshes[0], global_dict
@@ -313,7 +324,7 @@ class SF3D(BaseModule):
         batch,
         bake_resolution: int,
         remesh: Literal["none", "triangle", "quad"] = "none",
-        vertex_count: int = -1,
+        vertex_simplification_factor: Literal['high', 'medium', 'low'] = 'high',
         estimate_illumination: bool = False,
     ):
         batch["rgb_cond"] = self.image_processor(
@@ -346,12 +357,34 @@ class SF3D(BaseModule):
                         rets.append(None)
                         continue
 
+                    if vertex_simplification_factor == 'high':
+                        vertex_count = -1
+                    elif vertex_simplification_factor == 'med':
+                        vertex_count = round(0.5 * mesh.v_pos.shape[0])
+                    elif vertex_simplification_factor == 'low':
+                        vertex_count = round(0.15 * mesh.v_pos.shape[0])
+
                     if remesh == "triangle":
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
 
-                    # print("After Remesh", mesh.v_pos.shape[0], mesh.t_pos_idx.shape[0])
+                    # TODO: REMOVE UNTIL 369 AFYET TRANSLATING CODE
+                    print("After Remesh", mesh.v_pos.shape[0], mesh.t_pos_idx.shape[0])
+                    verts_np = convert_data(mesh.v_pos)
+                    faces = convert_data(mesh.t_pos_idx)
+
+                    rets.append({
+                        'vertices': verts_np,
+                        'faces': faces,
+                        'uvs': None,
+                        'basecolor_tex': None,
+                        'bump_tex': None,
+                        'roughness': None,
+                        'metallic': None
+                    })
+                    
+                    continue
                     mesh.unwrap_uv()
 
                     # Build textures
@@ -502,25 +535,23 @@ class SF3D(BaseModule):
 
         return rets, global_dict
 
-    def import_mesh_blender(self, mesh, mesh_name="GeneratedMesh"):
-        mesh = bpy.data.meshes.new(mesh_name)
-        obj = bpy.data.objects.new(mesh_name, mesh)
-
-        # Link the object to the current scene
+    def import_mesh_blender(self, mesh, mesh_name="GeneratedMesh"):    
+        mesh_data = bpy.data.meshes.new(mesh_name)
+        mesh_data.from_pydata(mesh['vertices'], [], mesh['faces'])
+        obj = bpy.data.objects.new(name=mesh_name, object_data=mesh_data)
         bpy.context.collection.objects.link(obj)
+
+        return
+
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 
-        # Set mesh data
-        mesh.from_pydata(mesh['vertices'], [], mesh['faces'])
-        mesh.update()
-
         # UV setup
         if mesh['uvs'] is not None:
-            mesh.uv_layers.new(name="UVMap")
-            uv_layer = mesh.uv_layers.active.data
+            mesh_data.uv_layers.new(name="UVMap")
+            uv_layer = mesh_data.uv_layers.active.data
             flattened_uvs = [uv for face in mesh['faces'] for uv in mesh['uvs'][face]]
-            for i, loop in enumerate(mesh.loops):
+            for i, loop in enumerate(mesh_data.loops):
                 uv_layer[i].uv = flattened_uvs[i]
 
         # Material setup
@@ -548,8 +579,10 @@ class SF3D(BaseModule):
             links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
 
         # Set roughness and metallic factors
-        bsdf.inputs['Roughness'].default_value = mesh['roughness']
-        bsdf.inputs['Metallic'].default_value = mesh['metallic']
+        if mesh['roughness']:
+            bsdf.inputs['Roughness'].default_value = mesh['roughness']
+        if mesh['metallic']:
+            bsdf.inputs['Metallic'].default_value = mesh['metallic']
 
         # Set normal map
         if mesh['bump_tex']:

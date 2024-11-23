@@ -5,25 +5,25 @@ from typing import Any, Dict, Optional
 
 import gpytoolbox
 import numpy as np
-import pynim
+# import pynim
 import torch
 import torch.nn.functional as F
-import trimesh
+# import trimesh
 from jaxtyping import Float, Integer
 from torch import Tensor
 
 from .utils import dot
 
-try:
-    from uv_unwrapper import Unwrapper
-except ImportError:
-    import logging
+# try:
+#     from uv_unwrapper import Unwrapper
+# except ImportError:
+#     import logging
 
-    logging.warning(
-        "Could not import uv_unwrapper. Please install it via `pip install uv_unwrapper/`"
-    )
-    # Exit early to avoid further errors
-    raise ImportError("uv_unwrapper not found")
+#     logging.warning(
+#         "Could not import uv_unwrapper. Please install it via `pip install uv_unwrapper/`"
+#     )
+#     # Exit early to avoid further errors
+#     raise ImportError("uv_unwrapper not found")
 
 
 class Mesh:
@@ -40,7 +40,7 @@ class Mesh:
         for k, v in kwargs.items():
             self.add_extra(k, v)
 
-        self.unwrapper = Unwrapper()
+        self.unwrapper = None #Unwrapper()
 
     def add_extra(self, k, v) -> None:
         self.extras[k] = v
@@ -161,23 +161,23 @@ class Mesh:
         v_pos = self.v_pos.detach().cpu().numpy().astype(np.float32)
         t_pos_idx = self.t_pos_idx.detach().cpu().numpy().astype(np.uint32)
 
-        new_vert, new_faces = pynim.remesh(
-            v_pos,
-            t_pos_idx,
-            quad_vertex_count // 4,
-            rosy=quad_rosy,
-            posy=4,
-            creaseAngle=quad_crease_angle,
-            align_to_boundaries=quad_align_to_boundaries,
-            smooth_iter=quad_smooth_iter,
-            deterministic=False,
-        )
+        # new_vert, new_faces = pynim.remesh(
+        #     v_pos,
+        #     t_pos_idx,
+        #     quad_vertex_count // 4,
+        #     rosy=quad_rosy,
+        #     posy=4,
+        #     creaseAngle=quad_crease_angle,
+        #     align_to_boundaries=quad_align_to_boundaries,
+        #     smooth_iter=quad_smooth_iter,
+        #     deterministic=False,
+        # )
 
-        # Briefly load in trimesh
-        mesh = trimesh.Trimesh(vertices=new_vert, faces=new_faces.astype(np.int32))
+        # # Briefly load in trimesh
+        # mesh = trimesh.Trimesh(vertices=new_vert, faces=new_faces.astype(np.int32))
 
-        v_pos = torch.from_numpy(mesh.vertices).to(self.v_pos).contiguous()
-        t_pos_idx = torch.from_numpy(mesh.faces).to(self.t_pos_idx).contiguous()
+        # v_pos = torch.from_numpy(mesh.vertices).to(self.v_pos).contiguous()
+        # t_pos_idx = torch.from_numpy(mesh.faces).to(self.t_pos_idx).contiguous()
 
         # Create new mesh
         return Mesh(v_pos, t_pos_idx)

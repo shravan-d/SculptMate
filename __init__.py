@@ -22,6 +22,7 @@ from .utils import label_multiline
 from . import addon_updater_ops
 
 Dependency = namedtuple("Dependency", ["module", "package", "name"])
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Declare all modules that this add-on depends on, that may need to be installed. The package and (global) name can be
 # set to None, if they are equal to the module name. See import_module and ensure_and_import_module for the explanation
@@ -37,10 +38,11 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="transformers==4.38.0", package=None, name=None),
                 Dependency(module="opencv-python", package=None, name=None),
                 Dependency(module="jsonschema", package=None, name=None),
+                Dependency(module="jaxtyping", package=None, name=None),
+                Dependency(module="gpytoolbox", package=None, name=None),
+                Dependency(module="open_clip_torch==2.24.0", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-checkpoint_files = ['/checkpoints/u2net.onnx', '/TripoSR/checkpoints/model.ckpt']
 
 dependencies_installed = False
 lean_checkpoint_found = False
@@ -262,7 +264,7 @@ class Install_dependencies(DataStore, bpy.types.Operator):
         global dependencies_installed
         dependencies_installed = True
         
-        if lean_checkpoint_found:
+        if lean_checkpoint_found or fast_checkpoint_found:
             from . import GUIPanel
             GUIPanel.register()
     
@@ -352,6 +354,11 @@ def register():
     for cls in preference_classes:
         bpy.utils.register_class(cls)
 
+    if os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
+        lean_checkpoint_found = True
+    if os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors'):
+        fast_checkpoint_found = True
+
     try:
         # for dependency in dependencies:
         #     import_module(module_name=dependency.module, global_name=dependency.name)
@@ -366,16 +373,14 @@ def register():
         import einops
         import cv2
         import transformers
+        import jaxtyping
+        import gpytoolbox
+        import open_clip
         dependencies_installed = True
     except ModuleNotFoundError as err:
         print('[Missing Module Error]', err)
         # Don't register other panels, operators etc.
         return
-
-    if os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
-        lean_checkpoint_found = True
-    if os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors'):
-        fast_checkpoint_found = True
 
     if not fast_checkpoint_found and not lean_checkpoint_found:
         print('[Missing Checkpoints Error] Please download checkpoints from the Preferences and ensure they are placed in the right directories.')

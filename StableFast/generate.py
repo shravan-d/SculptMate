@@ -16,31 +16,31 @@ class Fast3DGenerator():
     def initiate_model(self):
         if self.model is None:
             try:
-                model = SF3D.from_pretrained(
+                self.model = SF3D.from_pretrained(
                     self.checkpoint_dir,
                     config_name="config.yaml",
                     weight_name="model.safetensors",
                 )
-                model.to(self.device)
-                model.eval()
+                self.model.to(self.device)
+                self.model.eval()
             except Exception as e:
                 print('[Model Dos Initialization Error]', e)
                 return 2
             return 0
 
-    def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=1024, target_vertex_count=-1):
+    def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=1024, vertex_simplification_factor='high'):
         if self.model is None:
             return 1
         try:
             with torch.no_grad():
                 with torch.autocast(
                     device_type=self.device, dtype=torch.float16
-                ) if "cuda" in self.device else nullcontext():
+                ) if "cuda" == self.device.type else nullcontext():
                     mesh, glob_dict = self.model.run_image(
                         input_image,
                         bake_resolution=texture_resolution,
                         remesh=remesh_option,
-                        vertex_count=target_vertex_count,
+                        vertex_simplification_factor=vertex_simplification_factor,
                     )
             if mesh is None:
                 raise Exception('Mesh shape was zero')

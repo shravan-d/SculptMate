@@ -2,7 +2,7 @@ import os
 from typing import Any
 
 import numpy as np
-import rembg
+# import rembg
 import torch
 from PIL import Image
 
@@ -48,19 +48,19 @@ def default_cond_c2w(distance: float):
     return c2w_cond
 
 
-def remove_background(
-    image: Image,
-    rembg_session: Any = None,
-    force: bool = False,
-    **rembg_kwargs,
-) -> Image:
-    do_remove = True
-    if image.mode == "RGBA" and image.getextrema()[3][0] < 255:
-        do_remove = False
-    do_remove = do_remove or force
-    if do_remove:
-        image = rembg.remove(image, session=rembg_session, **rembg_kwargs)
-    return image
+# def remove_background(
+#     image: Image,
+#     rembg_session: Any = None,
+#     force: bool = False,
+#     **rembg_kwargs,
+# ) -> Image:
+#     do_remove = True
+#     if image.mode == "RGBA" and image.getextrema()[3][0] < 255:
+#         do_remove = False
+#     do_remove = do_remove or force
+#     if do_remove:
+#         image = rembg.remove(image, session=rembg_session, **rembg_kwargs)
+#     return image
 
 
 def resize_foreground(
