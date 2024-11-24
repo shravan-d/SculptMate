@@ -31,22 +31,22 @@ class Fast3DGenerator():
     def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=1024, vertex_simplification_factor='high'):
         if self.model is None:
             return 1
-        try:
-            with torch.no_grad():
-                with torch.autocast(
-                    device_type=self.device, dtype=torch.float16
-                ) if "cuda" == self.device.type else nullcontext():
-                    mesh, glob_dict = self.model.run_image(
-                        input_image,
-                        bake_resolution=texture_resolution,
-                        remesh=remesh_option,
-                        vertex_simplification_factor=vertex_simplification_factor,
-                    )
-            if mesh is None:
-                raise Exception('Mesh shape was zero')
+        # try:
+        with torch.no_grad():
+            with torch.autocast(
+                device_type=self.device, dtype=torch.float16
+            ) if "cuda" == self.device.type else nullcontext():
+                mesh, glob_dict = self.model.run_image(
+                    input_image,
+                    bake_resolution=texture_resolution,
+                    remesh=remesh_option,
+                    vertex_simplification_factor=vertex_simplification_factor,
+                )
+        if mesh is None:
+            raise Exception('Mesh shape was zero')
 
-            self.model.import_mesh_blender(mesh, input_name)
-            return 0
-        except Exception as e:
-            print('[Generation Error]', e)
-            return 2
+        self.model.import_mesh_blender(mesh, input_name)
+        return 0
+        # except Exception as e:
+        #     print('[Generation Error]', e)
+        #     return 2

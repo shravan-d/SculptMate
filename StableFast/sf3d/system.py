@@ -38,18 +38,7 @@ from .models.camera import LinearCameraEmbedder
 
 
 from .utils import create_intrinsic_from_fov_deg, default_cond_c2w, get_device
-
-# try:
-#     from texture_baker import TextureBaker
-# except ImportError:
-#     import logging
-
-#     logging.warning(
-#         "Could not import texture_baker. Please install it via `pip install texture-baker/`"
-#     )
-#     # Exit early to avoid further errors
-#     raise ImportError("texture_baker not found")
-
+from .texture_baker.baker import TextureBaker
 
 class SF3D(BaseModule):
     @dataclass
@@ -150,7 +139,7 @@ class SF3D(BaseModule):
             ),
         )
 
-        # self.baker = TextureBaker()
+        self.baker = TextureBaker()
         self.image_processor = ImageProcessor()
 
     def triplane_to_meshes(
@@ -342,14 +331,17 @@ class SF3D(BaseModule):
             )
         if self.global_estimator is not None and estimate_illumination:
             global_dict.update(self.global_estimator(non_postprocessed_codes))
-
+        import time
+        t1 = time.time()
         device = get_device()
         with torch.no_grad():
             with torch.autocast(
                 device_type=device, enabled=False
             ) if "cuda" in device else nullcontext():
                 meshes = self.triplane_to_meshes(scene_codes)
-
+                
+                t2 = time.time()
+                print('Generation Time (s):', str(t2 - t1 + 1))
                 rets = []
                 for i, mesh in enumerate(meshes):
                     # Check for empty mesh
@@ -368,25 +360,13 @@ class SF3D(BaseModule):
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
-
-                    # TODO: REMOVE UNTIL 369 AFYET TRANSLATING CODE
-                    print("After Remesh", mesh.v_pos.shape[0], mesh.t_pos_idx.shape[0])
-                    verts_np = convert_data(mesh.v_pos)
-                    faces = convert_data(mesh.t_pos_idx)
-
-                    rets.append({
-                        'vertices': verts_np,
-                        'faces': faces,
-                        'uvs': None,
-                        'basecolor_tex': None,
-                        'bump_tex': None,
-                        'roughness': None,
-                        'metallic': None
-                    })
                     
-                    continue
+                    t3 = time.time()
+                    print('Remesh Time (s):', str(t3 - t2 + 1))
                     mesh.unwrap_uv()
-
+                    t4 = time.time()
+                    print('Unwrap Time (s):', str(t4 - t3 + 1))
+                    
                     # Build textures
                     rast = self.baker.rasterize(
                         mesh.v_tex, mesh.t_pos_idx, bake_resolution
@@ -398,7 +378,7 @@ class SF3D(BaseModule):
                         rast,
                         mesh.t_pos_idx,
                     )
-                    gb_pos = pos_bake[bake_mask]
+                    gb_pos = torch.from_numpy(pos_bake[bake_mask])
 
                     tri_query = self.query_triplane(gb_pos, scene_codes[i])[0]
                     decoded = self.decoder(
@@ -410,6 +390,8 @@ class SF3D(BaseModule):
                         rast,
                         mesh.t_pos_idx,
                     )
+                    nrm = torch.from_numpy(nrm)
+
                     gb_nrm = F.normalize(nrm[bake_mask], dim=-1)
                     decoded["normal"] = gb_nrm
 
@@ -425,6 +407,7 @@ class SF3D(BaseModule):
                         "normal": normalize(decoded["perturb_normal"]),
                         "bump": None,
                     }
+
 
                     for k, v in mat_out.items():
                         if v is None:
@@ -450,7 +433,7 @@ class SF3D(BaseModule):
                                     rast,
                                     mesh.t_pos_idx,
                                 )
-                                gb_tng = tng[bake_mask]
+                                gb_tng = torch.from_numpy(tng[bake_mask])
                                 gb_tng = F.normalize(gb_tng, dim=-1)
                                 gb_btng = F.normalize(
                                     torch.cross(gb_tng, gb_nrm, dim=-1), dim=-1
@@ -482,7 +465,7 @@ class SF3D(BaseModule):
                         return (
                             dilate_fill(
                                 arr.permute(2, 0, 1)[None, ...].contiguous(),
-                                bake_mask.unsqueeze(0).unsqueeze(0),
+                                torch.from_numpy(bake_mask).unsqueeze(0).unsqueeze(0),
                                 iterations=bake_resolution // 150,
                             )
                             .squeeze(0)
@@ -522,6 +505,10 @@ class SF3D(BaseModule):
                         )
                     else:
                         bump_tex = None
+                    
+                    
+                    t5 = time.time()
+                    print('Baking Time (s):', str(t5 - t4 + 1))
 
                     rets.append({
                         'vertices': verts_np,
@@ -535,13 +522,11 @@ class SF3D(BaseModule):
 
         return rets, global_dict
 
-    def import_mesh_blender(self, mesh, mesh_name="GeneratedMesh"):    
+    def import_mesh_blender(self, mesh, mesh_name="GeneratedMesh"):  
         mesh_data = bpy.data.meshes.new(mesh_name)
         mesh_data.from_pydata(mesh['vertices'], [], mesh['faces'])
         obj = bpy.data.objects.new(name=mesh_name, object_data=mesh_data)
         bpy.context.collection.objects.link(obj)
-
-        return
 
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)

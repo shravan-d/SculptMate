@@ -13,17 +13,7 @@ from jaxtyping import Float, Integer
 from torch import Tensor
 
 from .utils import dot
-
-# try:
-#     from uv_unwrapper import Unwrapper
-# except ImportError:
-#     import logging
-
-#     logging.warning(
-#         "Could not import uv_unwrapper. Please install it via `pip install uv_unwrapper/`"
-#     )
-#     # Exit early to avoid further errors
-#     raise ImportError("uv_unwrapper not found")
+from ..uv_unwrapper.unwrap import Unwrapper
 
 
 class Mesh:
@@ -40,7 +30,7 @@ class Mesh:
         for k, v in kwargs.items():
             self.add_extra(k, v)
 
-        self.unwrapper = None #Unwrapper()
+        self.unwrapper = Unwrapper()
 
     def add_extra(self, k, v) -> None:
         self.extras[k] = v
@@ -173,11 +163,11 @@ class Mesh:
         #     deterministic=False,
         # )
 
-        # # Briefly load in trimesh
+        # Briefly load in trimesh
         # mesh = trimesh.Trimesh(vertices=new_vert, faces=new_faces.astype(np.int32))
 
-        # v_pos = torch.from_numpy(mesh.vertices).to(self.v_pos).contiguous()
-        # t_pos_idx = torch.from_numpy(mesh.faces).to(self.t_pos_idx).contiguous()
+        v_pos = torch.from_numpy(new_vert).to(self.v_pos).contiguous()
+        t_pos_idx = torch.from_numpy(new_faces.astype(np.int32)).to(self.t_pos_idx).contiguous()
 
         # Create new mesh
         return Mesh(v_pos, t_pos_idx)
