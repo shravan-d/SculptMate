@@ -22,31 +22,52 @@ def create_bvhs(bvhs: List[BVH], triangles: List[Triangle], triangle_per_face: L
     
     return bvhs
 
+import concurrent.futures
+
+def process_intersections(i, assign_indices_ptr, offset, triangles, bvhs, unique_intersections):
+    if assign_indices_ptr[i] < offset:
+        return []
+
+    cur_tri = triangles[i]
+    cur_bvh = bvhs[assign_indices_ptr[i] - offset]
+
+    if cur_bvh.nodes is None or len(cur_bvh.nodes) == 0:
+        return []
+
+    intersections = cur_bvh.intersect(cur_tri)
+
+    result = []
+    if intersections:
+        for intersect in intersections:
+            if i != intersect:
+                if i < intersect:
+                    result.append((i, intersect))
+                else:
+                    result.append((intersect, i))
+    return result
+
+def parallel_process(num_indices, assign_indices_ptr, offset, triangles, bvhs):
+    unique_intersections = []
+    
+    # Use ThreadPoolExecutor to parallelize the loop
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(process_intersections, i, assign_indices_ptr, offset, triangles, bvhs, unique_intersections)
+            for i in range(num_indices)
+        ]
+        
+        # Gather all results
+        for future in concurrent.futures.as_completed(futures):
+            intersections = future.result()
+            unique_intersections.extend(intersections)
+
+    return unique_intersections
 
 def perform_intersection_check(bvhs: List[BVH], num_bvhs: int, triangles: List[Triangle],
                                vertex_tri_centroids: List[UVFloat3], assign_indices_ptr: List[int],
                                num_indices: int, offset: int, triangle_per_face: List[Set[int]]):
-    unique_intersections = []
-
-    for i in range(num_indices):
-        if assign_indices_ptr[i] < offset:
-            continue
-
-        cur_tri = triangles[i]
-        cur_bvh = bvhs[assign_indices_ptr[i] - offset]
-
-        if cur_bvh.nodes is None or len(cur_bvh.nodes) == 0:
-            continue
-
-        intersections = cur_bvh.intersect(cur_tri)
-
-        if intersections:
-            for intersect in intersections:
-                if i != intersect:
-                    if i < intersect:
-                        unique_intersections.append((i, intersect))
-                    else:
-                        unique_intersections.append((intersect, i))
+    
+    unique_intersections = parallel_process(num_indices, assign_indices_ptr, offset, triangles, bvhs)
 
     # Step 2: Process unique intersections
     for idx in range(len(unique_intersections)):
@@ -115,10 +136,17 @@ def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, fa
 
     # Step 2: Create BVHs for the first set
     bvhs = [None] * 6
+    
+    import time
+    t1 = time.time()
     bvhs = create_bvhs(bvhs, triangles, triangle_per_face, num_faces, 0, 6)
-
+    
+    t2 = time.time()
+    print("BVH Create time:", t2 - t1)
     assign_indices = perform_intersection_check(bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 0, triangle_per_face)
-
+    
+    t3 = time.time()
+    print("Intersection Check time:", t3 - t2)
     # Step 3: Create new BVHs for the second set
     new_bvhs = [None] * 6
     bvhs = create_bvhs(new_bvhs, triangles, triangle_per_face, num_faces, 6, 12)

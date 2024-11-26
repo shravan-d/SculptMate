@@ -26,7 +26,7 @@ class TextureBaker(nn.Module):
             Tensor, bake_resolution bake_resolution 4, float: Rasterized map
         """
         return rasterize(
-            uv, face_indices.to(torch.int32), bake_resolution, device='cpu'
+            uv, face_indices.to(torch.int32), bake_resolution, device='cuda:0'
         )
 
     def get_mask(self, rast: Tensor) -> Tensor:
@@ -60,7 +60,7 @@ class TextureBaker(nn.Module):
             Tensor, bake_resolution bake_resolution 3, float: Interpolated attributes
         """
         return interpolate(
-            attr, face_indices.to(torch.int32), rast, device='cpu'
+            attr, face_indices.to(torch.int32), rast, device='cuda:0'
         )
 
     def forward(

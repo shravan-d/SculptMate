@@ -31,7 +31,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="pillow", package=None, name=None),
                 Dependency(module="torch", package=None, name=None),
-                Dependency(module="torchvision", package=None, name=None),
                 Dependency(module="onnxruntime", package=None, name=None),
                 Dependency(module="omegaconf==2.3.0", package=None, name=None),
                 Dependency(module="einops==0.7.0", package=None, name=None),
@@ -117,7 +116,15 @@ def install_and_import_module(module_name, package_name=None, global_name=None):
     environ_copy = dict(os.environ)
     environ_copy["PYTHONNOUSERSITE"] = "1"
 
-    subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True, env=environ_copy)
+    if package_name == "torch":
+        has_gpu = bpy.context.preferences.addons[__name__].preferences.has_gpu
+        if has_gpu:
+            print('Installing torch with GPU support')
+            subprocess.run([sys.executable, "-m", "pip", "install", "torch==2.3.0", "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True, env=environ_copy)
+        else:
+            subprocess.run([sys.executable, "-m", "pip", "install", "torch==2.3.0", "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cpu"], check=True, env=environ_copy)
+    else:
+        subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True, env=environ_copy)
 
     # The installation succeeded, attempt to import the module again
     # import_module(module_name, global_name)
@@ -188,7 +195,7 @@ class Download_Fast_Model(DataStore, bpy.types.Operator):
     bl_idname = "example.download_checkpoint_fast"
     bl_label = "Get Checkpoint (Better Geometry)"
     bl_description = ("Downloads the required model checkpoints required for generation. "
-                      "Internet connection is required. Expected to take ~2 minutes.")
+                      "Internet connection is required. Expected to take ~3 minutes.")
     bl_options = {"REGISTER", "INTERNAL"}
 
     @classmethod
@@ -198,8 +205,8 @@ class Download_Fast_Model(DataStore, bpy.types.Operator):
     
     def install_complete_callback(self):
         bpy.context.scene.download_progress = -1
-        global lean_checkpoint_found
-        lean_checkpoint_found = True
+        global fast_checkpoint_found
+        fast_checkpoint_found = True
 
         if dependencies_installed:
             from . import GUIPanel
@@ -231,6 +238,7 @@ class DownloadWorker(threading.Thread):
             self.context.scene.download_progress = 0
             
             if not os.path.isfile(ROOT_DIR + '/checkpoints/u2net.onnx'):
+                os.makedirs(ROOT_DIR + '/checkpoints', exist_ok=True)
                 urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/u2net.onnx", ROOT_DIR + "/checkpoints/u2net.onnx")
                 
             if self.download_type == 'Trippo':
@@ -279,6 +287,62 @@ class Install_dependencies(DataStore, bpy.types.Operator):
 
         return {"FINISHED"}
 
+class Reconfigure_Torch(DataStore, bpy.types.Operator):
+    bl_idname = "example.reconfigure_torch"
+    bl_label = "Reconfigure GPU Support"
+    bl_description = ("If you installed without GPU support, this reconfigures the add-on to use GPU."
+                      "Internet connection is required. Expected to take ~2 minutes.")
+    bl_options = {"REGISTER", "INTERNAL"}
+
+    @classmethod
+    def poll(self, context):
+        # Deactivate when dependencies have been installed
+        return context.scene.buttons_enabled
+    
+    def install_complete_callback(self):
+        bpy.context.scene.installation_progress = -1
+        global dependencies_installed
+        dependencies_installed = True
+        
+        if lean_checkpoint_found or fast_checkpoint_found:
+            from . import GUIPanel
+            GUIPanel.register()
+    
+    def install_error_callback(self):
+        bpy.context.scene.installation_progress = -2
+
+    def execute(self, context):
+        # Install dependencies in background thread so Blender doesn't hang
+        thread = TorchReconWorker(self, self.install_complete_callback, self.install_error_callback, context)
+        thread.start()
+
+        return {"FINISHED"}
+
+class TorchReconWorker(threading.Thread):
+
+    def __init__(self, parent_cls, finish_callback, error_callback, context):
+        self.parent_cls = parent_cls
+        self.finish_callback = finish_callback
+        self.error_callback = error_callback
+        self.context = context
+        threading.Thread.__init__(self)
+
+    def run(self):
+        self.context.scene.buttons_enabled = False
+        try:
+            environ_copy = dict(os.environ)
+            environ_copy["PYTHONNOUSERSITE"] = "1"
+            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torch"], check=True, env=environ_copy)
+            subprocess.run([sys.executable, "-m", "pip", "install", "torch==2.3.0", "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True, env=environ_copy)
+
+        except (subprocess.CalledProcessError, ImportError) as err:
+            print('[Installation Error]', err)
+            self.context.scene.buttons_enabled = True
+            self.error_callback()
+            return
+        self.finish_callback()
+        self.context.scene.buttons_enabled = True
+
 class InstallationWorker(threading.Thread):
 
     def __init__(self, parent_cls, finish_callback, error_callback, context):
@@ -311,9 +375,20 @@ class MyPreferences(bpy.types.AddonPreferences):
 		name="Auto-check for Update",
 		description="If enabled, auto-check for updates using an interval",
 		default=False) # type: ignore
+    
+    has_gpu: bpy.props.BoolProperty(
+        name="Has GPU",
+        description="Check this if your system has a GPU available",
+        default=False,
+    ) # type: ignore
 
     def draw(self, context):
         layout = self.layout
+        row = layout.row()
+        row.column().prop(self, "has_gpu")
+        row.column().separator()
+        row.column().operator(Reconfigure_Torch.bl_idname)
+
         layout.operator(Install_dependencies.bl_idname, icon="CONSOLE")
         if context.scene.installation_progress == 0:
             layout.label(text='Installation starting.')
@@ -339,6 +414,7 @@ preference_classes = (Warning_PT_panel,
                       Install_dependencies,
                       Download_Lean_Model,
                       Download_Fast_Model,
+                      Reconfigure_Torch,
                       MyPreferences)
 
 

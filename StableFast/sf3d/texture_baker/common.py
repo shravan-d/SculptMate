@@ -141,7 +141,7 @@ def rasterize_cpu(vertices, indices, resolution):
 
     return output
 
-def rasterize(vertices, indices, resolution, device='cuda'):
+def rasterize(vertices, indices, resolution, device='cuda', batch_size=2):
     """
     Rasterizes UVs using a BVH or directly with barycentric coordinates.
     Optimized with PyTorch for GPU acceleration.
@@ -157,8 +157,6 @@ def rasterize(vertices, indices, resolution, device='cuda'):
     width, height = resolution, resolution
     pixels_x = torch.linspace(0, 1, width, device=device)
     pixels_y = torch.linspace(0, 1, height, device=device)
-    grid_x, grid_y = torch.meshgrid(pixels_x, pixels_y, indexing='ij')
-    pixels = torch.stack((grid_x.flatten(), grid_y.flatten()), dim=-1)  # (width*height, 2)
 
     # Move vertices and indices to GPU if necessary
     vertices = vertices.to(device)
@@ -172,34 +170,45 @@ def rasterize(vertices, indices, resolution, device='cuda'):
     # Calculate edge vectors
     v0v1 = v1 - v0
     v0v2 = v2 - v0
-
-    # Compute barycentric coordinates for all triangles and all pixels
-    pv0 = pixels.unsqueeze(1) - v0  # (width*height, m, 2)
     d00 = (v0v1 * v0v1).sum(dim=-1)  # (m,)
     d01 = (v0v1 * v0v2).sum(dim=-1)  # (m,)
     d11 = (v0v2 * v0v2).sum(dim=-1)  # (m,)
-    d20 = (pv0 * v0v1.unsqueeze(0)).sum(dim=-1)  # (width*height, m)
-    d21 = (pv0 * v0v2.unsqueeze(0)).sum(dim=-1)  # (width*height, m)
-
     denom = d00 * d11 - d01 * d01  # (m,)
-    v = (d11 * d20 - d01 * d21) / denom  # (width*height, m)
-    w = (d00 * d21 - d01 * d20) / denom  # (width*height, m)
-    u = 1 - v - w  # (width*height, m)
+    
+    result = torch.zeros((height, width, 4), device=device)
+    
+    for start_y in range(0, height, batch_size):
+        end_y = min(start_y + batch_size, height)
+        batch_pixels_y = pixels_y[start_y:end_y]
+        grid_x, grid_y = torch.meshgrid(pixels_x, batch_pixels_y, indexing='ij')
+        pixels = torch.stack((grid_x.flatten(), grid_y.flatten()), dim=-1)  # (batch_width*batch_height, 2)
+    
+        # Compute barycentric coordinates for all triangles and all pixels
+        pv0 = pixels.unsqueeze(1) - v0  # (width*height, m, 2)
+        d20 = (pv0 * v0v1.unsqueeze(0)).sum(dim=-1)  # (width*height, m)
+        d21 = (pv0 * v0v2.unsqueeze(0)).sum(dim=-1)  # (width*height, m)
 
-    # Determine if pixels are inside the triangle
-    inside = (u >= 0) & (v >= 0) & (w >= 0)  # (width*height, m)
+        v = (d11 * d20 - d01 * d21) / denom  # (width*height, m)
+        w = (d00 * d21 - d01 * d20) / denom  # (width*height, m)
+        u = 1 - v - w  # (width*height, m)
 
-    # Select the first triangle that covers each pixel
-    pixel_mask = inside.any(dim=1)  # (width*height,)
-    triangle_idx = torch.argmax(inside.float(), dim=1)  # (width*height,)
+        # Determine if pixels are inside the triangle
+        inside = (u >= 0) & (v >= 0) & (w >= 0)  # (width*height, m)
 
-    # Assign barycentric coordinates to output
-    uvw = torch.stack((u, v, w), dim=-1)  # (width*height, m, 3)
-    result = torch.zeros((width * height, 4), device=device)
-    result[pixel_mask, :3] = uvw[pixel_mask, triangle_idx[pixel_mask]]
-    result[pixel_mask, 3] = triangle_idx[pixel_mask].float()
+        # Select the first triangle that covers each pixel
+        pixel_mask = inside.any(dim=1)  # (width*height,)
+        triangle_idx = torch.argmax(inside.float(), dim=1)  # (width*height,)
 
-    return result.view(height, width, 4)
+        # Assign barycentric coordinates to output
+        uvw = torch.stack((u, v, w), dim=-1)  # (width*height, m, 3)
+        batch_result = torch.zeros((pixels.shape[0], 4), device=device)
+        batch_result[pixel_mask, :3] = uvw[pixel_mask, triangle_idx[pixel_mask]]
+        batch_result[pixel_mask, 3] = triangle_idx[pixel_mask].float()
+
+        batch_result = batch_result.view(end_y - start_y, width, 4)
+        result[start_y:end_y, :, :] = batch_result
+
+    return result
 
 
 def interpolate_cpu(attr, indices, rast):

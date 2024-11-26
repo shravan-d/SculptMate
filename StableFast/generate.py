@@ -20,6 +20,7 @@ class Fast3DGenerator():
                     self.checkpoint_dir,
                     config_name="config.yaml",
                     weight_name="model.safetensors",
+                    device=self.device
                 )
                 self.model.to(self.device)
                 self.model.eval()
@@ -28,13 +29,14 @@ class Fast3DGenerator():
                 return 2
             return 0
 
-    def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=1024, vertex_simplification_factor='high'):
+    def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=512, vertex_simplification_factor='high'):
         if self.model is None:
             return 1
         # try:
+        torch.cuda.empty_cache()
         with torch.no_grad():
             with torch.autocast(
-                device_type=self.device, dtype=torch.float16
+                device_type=self.device.type, dtype=torch.float16
             ) if "cuda" == self.device.type else nullcontext():
                 mesh, glob_dict = self.model.run_image(
                     input_image,

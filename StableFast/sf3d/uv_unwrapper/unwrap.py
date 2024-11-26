@@ -484,6 +484,7 @@ class Unwrapper(nn.Module):
         div_x: Tensor,
         div_y: Tensor,
         island_padding: float,
+        device,
     ) -> Tensor:
         """
         Distribute the individual UVs in the atlas
@@ -508,6 +509,14 @@ class Unwrapper(nn.Module):
         )
 
         uc, vc = placed_uv.unbind(-1)
+        
+        uc = uc.to(device)
+        vc = vc.to(device)
+        offset_x = offset_x.to(device)
+        offset_y = offset_y.to(device)
+        div_x = div_x.to(device)
+        div_y = div_y.to(device)
+
         uc = uc / div_x[:, None] + offset_x[:, None]
         vc = vc / div_y[:, None] + offset_y[:, None]
 
@@ -619,6 +628,7 @@ class Unwrapper(nn.Module):
         vertex_normals: Tensor,
         triangle_idxs: Tensor,
         island_padding: float,
+        device,
     ) -> Tuple[Tensor, Tensor]:
         """
         Unwrap the mesh
@@ -665,6 +675,7 @@ class Unwrapper(nn.Module):
             div_x,
             div_y,
             island_padding,
+            device
         )
 
         return self._get_unique_face_uv(placed_uv)

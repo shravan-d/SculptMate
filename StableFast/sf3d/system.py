@@ -79,23 +79,19 @@ class SF3D(BaseModule):
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str, config_name: str, weight_name: str
+        cls, pretrained_model_name_or_path: str, config_name: str, weight_name: str, device: str
     ):
         if os.path.isdir(pretrained_model_name_or_path):
             config_path = os.path.join(pretrained_model_name_or_path, config_name)
             weight_path = os.path.join(pretrained_model_name_or_path, weight_name)
         else:
             raise FileNotFoundError('Checkpoint directory given doesnt exist')
-
+        cls.device = device
         cfg = OmegaConf.load(config_path)
         OmegaConf.resolve(cfg)
         model = cls(cfg)
         load_model(model, weight_path)
         return model
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
 
     def configure(self):
         self.image_tokenizer = DINOV2SingleImageTokenizer(
@@ -333,11 +329,10 @@ class SF3D(BaseModule):
             global_dict.update(self.global_estimator(non_postprocessed_codes))
         import time
         t1 = time.time()
-        device = get_device()
         with torch.no_grad():
             with torch.autocast(
-                device_type=device, enabled=False
-            ) if "cuda" in device else nullcontext():
+                device_type=self.device.type, enabled=False
+            ) if "cuda" == self.device.type else nullcontext():
                 meshes = self.triplane_to_meshes(scene_codes)
                 
                 t2 = time.time()
@@ -350,7 +345,7 @@ class SF3D(BaseModule):
                         continue
 
                     if vertex_simplification_factor == 'high':
-                        vertex_count = -1
+                        vertex_count = round(0.8 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'med':
                         vertex_count = round(0.5 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'low':
@@ -363,7 +358,7 @@ class SF3D(BaseModule):
                     
                     t3 = time.time()
                     print('Remesh Time (s):', str(t3 - t2 + 1))
-                    mesh.unwrap_uv()
+                    mesh.unwrap_uv(self.device)
                     t4 = time.time()
                     print('Unwrap Time (s):', str(t4 - t3 + 1))
                     
@@ -378,7 +373,7 @@ class SF3D(BaseModule):
                         rast,
                         mesh.t_pos_idx,
                     )
-                    gb_pos = torch.from_numpy(pos_bake[bake_mask])
+                    gb_pos = pos_bake[bake_mask]
 
                     tri_query = self.query_triplane(gb_pos, scene_codes[i])[0]
                     decoded = self.decoder(
@@ -390,7 +385,6 @@ class SF3D(BaseModule):
                         rast,
                         mesh.t_pos_idx,
                     )
-                    nrm = torch.from_numpy(nrm)
 
                     gb_nrm = F.normalize(nrm[bake_mask], dim=-1)
                     decoded["normal"] = gb_nrm
@@ -433,7 +427,7 @@ class SF3D(BaseModule):
                                     rast,
                                     mesh.t_pos_idx,
                                 )
-                                gb_tng = torch.from_numpy(tng[bake_mask])
+                                gb_tng = tng[bake_mask]
                                 gb_tng = F.normalize(gb_tng, dim=-1)
                                 gb_btng = F.normalize(
                                     torch.cross(gb_tng, gb_nrm, dim=-1), dim=-1
@@ -465,7 +459,7 @@ class SF3D(BaseModule):
                         return (
                             dilate_fill(
                                 arr.permute(2, 0, 1)[None, ...].contiguous(),
-                                torch.from_numpy(bake_mask).unsqueeze(0).unsqueeze(0),
+                                bake_mask.unsqueeze(0).unsqueeze(0),
                                 iterations=bake_resolution // 150,
                             )
                             .squeeze(0)
@@ -559,7 +553,11 @@ class SF3D(BaseModule):
         # Set base color texture
         if mesh['basecolor_tex']:
             tex_image = nodes.new('ShaderNodeTexImage')
-            tex_image.image = bpy.data.images.load(mesh['basecolor_tex'])
+            image_data = np.array(mesh['basecolor_tex'])
+            blender_image = bpy.data.images.new("PIL_Image", width=mesh['basecolor_tex'].width, height=mesh['basecolor_tex'].height)
+            blender_image.pixels = image_data.flatten() / 255.0
+            tex_image.image = blender_image
+            # tex_image.image = bpy.data.images.load(mesh['basecolor_tex'])
             tex_image.location = (-300, 200)
             links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
 
@@ -572,7 +570,11 @@ class SF3D(BaseModule):
         # Set normal map
         if mesh['bump_tex']:
             normal_map = nodes.new('ShaderNodeTexImage')
-            normal_map.image = bpy.data.images.load(mesh['bump_tex'])
+            image_data = np.array(mesh['bump_tex'])
+            blender_image = bpy.data.images.new("PIL_Image", width=mesh['bump_tex'].width, height=mesh['bump_tex'].height)
+            blender_image.pixels = image_data.flatten() / 255.0
+            normal_map.image = blender_image
+            # normal_map.image = bpy.data.images.load(mesh['bump_tex'])
             normal_map.image.colorspace_settings.name = 'Non-Color'
             normal_map.location = (-300, -200)
 
