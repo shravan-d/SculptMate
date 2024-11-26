@@ -66,7 +66,7 @@ class MyProperties(bpy.types.PropertyGroup):
             ('medium', "Medium", ""),
             ('high', "High", ""),
         ],
-        default='high'
+        default='low'
     ) # type: ignore
         
     enable_textures: bpy.props.BoolProperty(

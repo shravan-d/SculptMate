@@ -345,11 +345,11 @@ class SF3D(BaseModule):
                         continue
 
                     if vertex_simplification_factor == 'high':
-                        vertex_count = round(0.8 * mesh.v_pos.shape[0])
-                    elif vertex_simplification_factor == 'med':
                         vertex_count = round(0.5 * mesh.v_pos.shape[0])
+                    elif vertex_simplification_factor == 'med':
+                        vertex_count = round(0.3 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'low':
-                        vertex_count = round(0.15 * mesh.v_pos.shape[0])
+                        vertex_count = round(0.05 * mesh.v_pos.shape[0])
 
                     if remesh == "triangle":
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
@@ -473,7 +473,7 @@ class SF3D(BaseModule):
 
                     basecolor_tex = Image.fromarray(
                         float32_to_uint8_np(convert_data(uv_padding(mat_out["albedo"])))
-                    ).convert("RGB")
+                    ).convert("RGBA")
                     basecolor_tex.format = "JPEG"
 
                     metallic = mat_out["metallic"].squeeze().cpu().item()
@@ -493,7 +493,7 @@ class SF3D(BaseModule):
                                     bump_np == bump_up, axis=-1, keepdims=True
                                 ).astype(np.float32),
                             )
-                        ).convert("RGB")
+                        ).convert("RGBA")
                         bump_tex.format = (
                             "JPEG"  # PNG would be better but the assets are larger
                         )
@@ -554,10 +554,9 @@ class SF3D(BaseModule):
         if mesh['basecolor_tex']:
             tex_image = nodes.new('ShaderNodeTexImage')
             image_data = np.array(mesh['basecolor_tex'])
-            blender_image = bpy.data.images.new("PIL_Image", width=mesh['basecolor_tex'].width, height=mesh['basecolor_tex'].height)
+            blender_image = bpy.data.images.new("BaseColor", width=mesh['basecolor_tex'].width, height=mesh['basecolor_tex'].height)
             blender_image.pixels = image_data.flatten() / 255.0
             tex_image.image = blender_image
-            # tex_image.image = bpy.data.images.load(mesh['basecolor_tex'])
             tex_image.location = (-300, 200)
             links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
 
@@ -571,10 +570,9 @@ class SF3D(BaseModule):
         if mesh['bump_tex']:
             normal_map = nodes.new('ShaderNodeTexImage')
             image_data = np.array(mesh['bump_tex'])
-            blender_image = bpy.data.images.new("PIL_Image", width=mesh['bump_tex'].width, height=mesh['bump_tex'].height)
+            blender_image = bpy.data.images.new("Bump", width=mesh['bump_tex'].width, height=mesh['bump_tex'].height)
             blender_image.pixels = image_data.flatten() / 255.0
             normal_map.image = blender_image
-            # normal_map.image = bpy.data.images.load(mesh['bump_tex'])
             normal_map.image.colorspace_settings.name = 'Non-Color'
             normal_map.location = (-300, -200)
 

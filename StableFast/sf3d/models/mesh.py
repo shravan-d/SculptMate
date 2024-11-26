@@ -180,12 +180,10 @@ class Mesh:
     ):
         if triangle_vertex_count > 0:
             reduction = triangle_vertex_count / self.v_pos.shape[0]
-            print("Triangle reduction:", reduction)
             v_pos = self.v_pos.detach().cpu().numpy().astype(np.float32)
             t_pos_idx = self.t_pos_idx.detach().cpu().numpy().astype(np.int32)
             if reduction > 1.0:
                 subdivide_iters = int(math.ceil(math.log(reduction) / math.log(2)))
-                print("Subdivide iters:", subdivide_iters)
                 v_pos, t_pos_idx = gpytoolbox.subdivide(
                     v_pos,
                     t_pos_idx,

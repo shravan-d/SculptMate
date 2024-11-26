@@ -3,25 +3,23 @@ from typing import List, Tuple, Deque
 from collections import deque
 
 # Import helper classes and methods
-from .common import UVFloat3, triangle_centroid_3d, cross_3d, normalize, EPSILON
+from .common import UVFloat2, triangle_centroid_2d, cross_3d, normalize, EPSILON
 from .intersect import triangle_triangle_intersection, triangle_aabb_intersection
 
 # TODO: Should this be 2D or 3D?
 class AABB:
     def __init__(self):
-        self.min = UVFloat3(np.inf, np.inf, np.inf)
-        self.max = UVFloat3(-np.inf, -np.inf, -np.inf)
+        self.min = UVFloat2(np.inf, np.inf)
+        self.max = UVFloat2(-np.inf, -np.inf)
 
-    def grow(self, point: UVFloat3):
-        self.min = UVFloat3(
+    def grow(self, point: UVFloat2):
+        self.min = UVFloat2(
             min(self.min.x, point.x),
             min(self.min.y, point.y),
-            min(self.min.z, point.z)
         )
-        self.max = UVFloat3(
+        self.max = UVFloat2(
             max(self.max.x, point.x),
             max(self.max.y, point.y),
-            max(self.max.z, point.z)
         )
 
     def grow_aabb(self, other: 'AABB'):
@@ -33,11 +31,11 @@ class AABB:
 
     def area(self) -> float:
         extent = self.max - self.min
-        return extent.x * extent.y * extent.z
+        return extent.x * extent.y
 
     def invalidate(self):
-        self.min = UVFloat3(np.inf, np.inf, np.inf)
-        self.max = UVFloat3(-np.inf, -np.inf, -np.inf)
+        self.min = UVFloat2(np.inf, np.inf)
+        self.max = UVFloat2(-np.inf, -np.inf)
 
 
 class BVHNode:
@@ -59,16 +57,16 @@ class BVHNode:
 
 
 class Triangle:
-    def __init__(self, v0: UVFloat3, v1: UVFloat3, v2: UVFloat3):
+    def __init__(self, v0: UVFloat2, v1: UVFloat2, v2: UVFloat2):
         self.a = v0
         self.b = v1
         self.c = v2
-        self.centroid = triangle_centroid_3d(v0, v1, v2)
+        self.centroid = triangle_centroid_2d(v0, v1, v2)
 
     def overlaps(self, other: 'Triangle') -> bool:
         return triangle_triangle_intersection(self.a, self.b, self.c, other.a, other.b, other.c)
 
-    def get_normal(self) -> UVFloat3:
+    def get_normal(self) -> UVFloat2:
         u = self.b - self.a
         v = self.c - self.a
         return normalize(cross_3d(u, v))
@@ -95,11 +93,11 @@ class BVH:
         root = self.nodes[0]
         root.start = 0
         root.end = self.tri_count
-        root_centroid_bounds = AABB()
-        self.update_node_bounds(0, root_centroid_bounds)
+        root_centroid_bounds = self.update_node_bounds(0)
         self.subdivide(0, root_centroid_bounds)
 
-    def update_node_bounds(self, node_idx: int, centroid_bounds: AABB):
+    def update_node_bounds(self, node_idx: int):
+        centroid_bounds = AABB()
         node = self.nodes[node_idx]
         node.bbox.invalidate()
         centroid_bounds.invalidate()
@@ -110,6 +108,8 @@ class BVH:
             node.bbox.grow(tri.b)
             node.bbox.grow(tri.c)
             centroid_bounds.grow(tri.centroid)
+
+        return centroid_bounds
 
     def subdivide(self, root_idx: int, root_centroid_bounds: AABB):
         node_queue: Deque[Tuple[int, AABB]] = deque([(root_idx, root_centroid_bounds)])
@@ -138,12 +138,10 @@ class BVH:
             self.nodes[right_child_idx].start = mid
             self.nodes[right_child_idx].end = node.end
 
-            left_bounds = AABB()
-            self.update_node_bounds(left_child_idx, left_bounds)
+            left_bounds = self.update_node_bounds(left_child_idx)
             node_queue.append((left_child_idx, left_bounds))
 
-            right_bounds = AABB()
-            self.update_node_bounds(right_child_idx, right_bounds)
+            right_bounds = self.update_node_bounds(right_child_idx)
             node_queue.append((right_child_idx, right_bounds))
 
     def partition_triangles(
