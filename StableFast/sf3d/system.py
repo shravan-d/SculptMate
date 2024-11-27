@@ -239,6 +239,7 @@ class SF3D(BaseModule):
         remesh: Literal["none", "triangle", "quad"] = "none",
         vertex_simplification_factor: Literal['high', 'medium', 'low'] = 'high',
         estimate_illumination: bool = False,
+        enable_texture: bool = True
     ):
         if isinstance(image, list):
             rgb_cond = []
@@ -274,7 +275,7 @@ class SF3D(BaseModule):
         }
 
         meshes, global_dict = self.generate_mesh(
-            batch, bake_resolution, remesh, vertex_simplification_factor, estimate_illumination
+            batch, bake_resolution, remesh, vertex_simplification_factor, estimate_illumination, enable_texture
         )
         if batch_size == 1:
             return meshes[0], global_dict
@@ -311,6 +312,7 @@ class SF3D(BaseModule):
         remesh: Literal["none", "triangle", "quad"] = "none",
         vertex_simplification_factor: Literal['high', 'medium', 'low'] = 'high',
         estimate_illumination: bool = False,
+        enable_texture: bool = True
     ):
         batch["rgb_cond"] = self.image_processor(
             batch["rgb_cond"], self.cfg.cond_image_size
@@ -343,176 +345,189 @@ class SF3D(BaseModule):
                     if mesh.v_pos.shape[0] == 0:
                         rets.append(None)
                         continue
-
+                    
+                    print(vertex_simplification_factor)
                     if vertex_simplification_factor == 'high':
                         vertex_count = round(0.5 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'med':
                         vertex_count = round(0.3 * mesh.v_pos.shape[0])
-                    elif vertex_simplification_factor == 'low':
+                    else:
                         vertex_count = round(0.05 * mesh.v_pos.shape[0])
 
                     if remesh == "triangle":
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
-                    
-                    t3 = time.time()
-                    print('Remesh Time (s):', str(t3 - t2 + 1))
-                    mesh.unwrap_uv(self.device)
-                    t4 = time.time()
-                    print('Unwrap Time (s):', str(t4 - t3 + 1))
-                    
-                    # Build textures
-                    rast = self.baker.rasterize(
-                        mesh.v_tex, mesh.t_pos_idx, bake_resolution
-                    )
-                    bake_mask = self.baker.get_mask(rast)
-
-                    pos_bake = self.baker.interpolate(
-                        mesh.v_pos,
-                        rast,
-                        mesh.t_pos_idx,
-                    )
-                    gb_pos = pos_bake[bake_mask]
-
-                    tri_query = self.query_triplane(gb_pos, scene_codes[i])[0]
-                    decoded = self.decoder(
-                        tri_query, exclude=["density", "vertex_offset"]
-                    )
-
-                    nrm = self.baker.interpolate(
-                        mesh.v_nrm,
-                        rast,
-                        mesh.t_pos_idx,
-                    )
-
-                    gb_nrm = F.normalize(nrm[bake_mask], dim=-1)
-                    decoded["normal"] = gb_nrm
-
-                    # Check if any keys in global_dict start with decoded_
-                    for k, v in global_dict.items():
-                        if k.startswith("decoder_"):
-                            decoded[k.replace("decoder_", "")] = v[i]
-
-                    mat_out = {
-                        "albedo": decoded["features"],
-                        "roughness": decoded["roughness"],
-                        "metallic": decoded["metallic"],
-                        "normal": normalize(decoded["perturb_normal"]),
-                        "bump": None,
-                    }
-
-
-                    for k, v in mat_out.items():
-                        if v is None:
-                            continue
-                        if v.shape[0] == 1:
-                            # Skip and directly add a single value
-                            mat_out[k] = v[0]
-                        else:
-                            f = torch.zeros(
-                                bake_resolution,
-                                bake_resolution,
-                                v.shape[-1],
-                                dtype=v.dtype,
-                                device=v.device,
-                            )
-                            if v.shape == f.shape:
-                                continue
-                            if k == "normal":
-                                # Use un-normalized tangents here so that larger smaller tris
-                                # Don't effect the tangents that much
-                                tng = self.baker.interpolate(
-                                    mesh.v_tng,
-                                    rast,
-                                    mesh.t_pos_idx,
-                                )
-                                gb_tng = tng[bake_mask]
-                                gb_tng = F.normalize(gb_tng, dim=-1)
-                                gb_btng = F.normalize(
-                                    torch.cross(gb_tng, gb_nrm, dim=-1), dim=-1
-                                )
-                                normal = F.normalize(mat_out["normal"], dim=-1)
-
-                                bump = torch.cat(
-                                    # Check if we have to flip some things
-                                    (
-                                        dot(normal, gb_tng),
-                                        dot(normal, gb_btng),
-                                        dot(normal, gb_nrm).clip(
-                                            0.3, 1
-                                        ),  # Never go below 0.3. This would indicate a flipped (or close to one) normal
-                                    ),
-                                    -1,
-                                )
-                                bump = (bump * 0.5 + 0.5).clamp(0, 1)
-
-                                f[bake_mask] = bump.view(-1, 3)
-                                mat_out["bump"] = f
-                            else:
-                                f[bake_mask] = v.view(-1, v.shape[-1])
-                                mat_out[k] = f
-
-                    def uv_padding(arr):
-                        if arr.ndim == 1:
-                            return arr
-                        return (
-                            dilate_fill(
-                                arr.permute(2, 0, 1)[None, ...].contiguous(),
-                                bake_mask.unsqueeze(0).unsqueeze(0),
-                                iterations=bake_resolution // 150,
-                            )
-                            .squeeze(0)
-                            .permute(1, 2, 0)
-                            .contiguous()
-                        )
 
                     verts_np = convert_data(mesh.v_pos)
                     faces = convert_data(mesh.t_pos_idx)
                     uvs = convert_data(mesh.v_tex)
 
-                    basecolor_tex = Image.fromarray(
-                        float32_to_uint8_np(convert_data(uv_padding(mat_out["albedo"])))
-                    ).convert("RGBA")
-                    basecolor_tex.format = "JPEG"
-
-                    metallic = mat_out["metallic"].squeeze().cpu().item()
-                    roughness = mat_out["roughness"].squeeze().cpu().item()
-
-                    if "bump" in mat_out and mat_out["bump"] is not None:
-                        bump_np = convert_data(uv_padding(mat_out["bump"]))
-                        bump_up = np.ones_like(bump_np)
-                        bump_up[..., :2] = 0.5
-                        bump_up[..., 2:] = 1
-                        bump_tex = Image.fromarray(
-                            float32_to_uint8_np(
-                                bump_np,
-                                dither=True,
-                                # Do not dither if something is perfectly flat
-                                dither_mask=np.all(
-                                    bump_np == bump_up, axis=-1, keepdims=True
-                                ).astype(np.float32),
-                            )
-                        ).convert("RGBA")
-                        bump_tex.format = (
-                            "JPEG"  # PNG would be better but the assets are larger
+                    if enable_texture:
+                        t3 = time.time()
+                        mesh.unwrap_uv(self.device)
+                        t4 = time.time()
+                        print('Unwrap Time (s):', str(t4 - t3))
+                        
+                        # Build textures
+                        rast = self.baker.rasterize(
+                            mesh.v_tex, mesh.t_pos_idx, bake_resolution, self.device
                         )
-                    else:
-                        bump_tex = None
-                    
-                    
-                    t5 = time.time()
-                    print('Baking Time (s):', str(t5 - t4 + 1))
+                        bake_mask = self.baker.get_mask(rast)
 
-                    rets.append({
-                        'vertices': verts_np,
-                        'faces': faces,
-                        'uvs': uvs,
-                        'basecolor_tex': basecolor_tex,
-                        'bump_tex': bump_tex,
-                        'roughness': roughness,
-                        'metallic': metallic
-                    })
+                        pos_bake = self.baker.interpolate(
+                            mesh.v_pos,
+                            rast,
+                            mesh.t_pos_idx,
+                            self.device
+                        )
+                        gb_pos = pos_bake[bake_mask]
+
+                        tri_query = self.query_triplane(gb_pos, scene_codes[i])[0]
+                        decoded = self.decoder(
+                            tri_query, exclude=["density", "vertex_offset"]
+                        )
+
+                        nrm = self.baker.interpolate(
+                            mesh.v_nrm,
+                            rast,
+                            mesh.t_pos_idx,
+                            self.device
+                        )
+
+                        gb_nrm = F.normalize(nrm[bake_mask], dim=-1)
+                        decoded["normal"] = gb_nrm
+
+                        # Check if any keys in global_dict start with decoded_
+                        for k, v in global_dict.items():
+                            if k.startswith("decoder_"):
+                                decoded[k.replace("decoder_", "")] = v[i]
+
+                        mat_out = {
+                            "albedo": decoded["features"],
+                            "roughness": decoded["roughness"],
+                            "metallic": decoded["metallic"],
+                            "normal": normalize(decoded["perturb_normal"]),
+                            "bump": None,
+                        }
+
+
+                        for k, v in mat_out.items():
+                            if v is None:
+                                continue
+                            if v.shape[0] == 1:
+                                # Skip and directly add a single value
+                                mat_out[k] = v[0]
+                            else:
+                                f = torch.zeros(
+                                    bake_resolution,
+                                    bake_resolution,
+                                    v.shape[-1],
+                                    dtype=v.dtype,
+                                    device=v.device,
+                                )
+                                if v.shape == f.shape:
+                                    continue
+                                if k == "normal":
+                                    # Use un-normalized tangents here so that larger smaller tris
+                                    # Don't effect the tangents that much
+                                    tng = self.baker.interpolate(
+                                        mesh.v_tng,
+                                        rast,
+                                        mesh.t_pos_idx,
+                                        self.device
+                                    )
+                                    gb_tng = tng[bake_mask]
+                                    gb_tng = F.normalize(gb_tng, dim=-1)
+                                    gb_btng = F.normalize(
+                                        torch.cross(gb_tng, gb_nrm, dim=-1), dim=-1
+                                    )
+                                    normal = F.normalize(mat_out["normal"], dim=-1)
+
+                                    bump = torch.cat(
+                                        # Check if we have to flip some things
+                                        (
+                                            dot(normal, gb_tng),
+                                            dot(normal, gb_btng),
+                                            dot(normal, gb_nrm).clip(
+                                                0.3, 1
+                                            ),  # Never go below 0.3. This would indicate a flipped (or close to one) normal
+                                        ),
+                                        -1,
+                                    )
+                                    bump = (bump * 0.5 + 0.5).clamp(0, 1)
+
+                                    f[bake_mask] = bump.view(-1, 3)
+                                    mat_out["bump"] = f
+                                else:
+                                    f[bake_mask] = v.view(-1, v.shape[-1])
+                                    mat_out[k] = f
+
+                        def uv_padding(arr):
+                            if arr.ndim == 1:
+                                return arr
+                            return (
+                                dilate_fill(
+                                    arr.permute(2, 0, 1)[None, ...].contiguous(),
+                                    bake_mask.unsqueeze(0).unsqueeze(0),
+                                    iterations=bake_resolution // 150,
+                                )
+                                .squeeze(0)
+                                .permute(1, 2, 0)
+                                .contiguous()
+                            )
+
+                        basecolor_tex = Image.fromarray(
+                            float32_to_uint8_np(convert_data(uv_padding(mat_out["albedo"])))
+                        ).convert("RGBA")
+                        basecolor_tex.format = "JPEG"
+
+                        metallic = mat_out["metallic"].squeeze().cpu().item()
+                        roughness = mat_out["roughness"].squeeze().cpu().item()
+
+                        if "bump" in mat_out and mat_out["bump"] is not None:
+                            bump_np = convert_data(uv_padding(mat_out["bump"]))
+                            bump_up = np.ones_like(bump_np)
+                            bump_up[..., :2] = 0.5
+                            bump_up[..., 2:] = 1
+                            bump_tex = Image.fromarray(
+                                float32_to_uint8_np(
+                                    bump_np,
+                                    dither=True,
+                                    # Do not dither if something is perfectly flat
+                                    dither_mask=np.all(
+                                        bump_np == bump_up, axis=-1, keepdims=True
+                                    ).astype(np.float32),
+                                )
+                            ).convert("RGBA")
+                            bump_tex.format = (
+                                "JPEG"  # PNG would be better but the assets are larger
+                            )
+                        else:
+                            bump_tex = None
+                        
+                        t5 = time.time()
+                        print('Baking Time (s):', str(t5 - t4 + 1))
+
+                        rets.append({
+                            'vertices': verts_np,
+                            'faces': faces,
+                            'uvs': uvs,
+                            'basecolor_tex': basecolor_tex,
+                            'bump_tex': bump_tex,
+                            'roughness': roughness,
+                            'metallic': metallic
+                        })
+                    else:
+                        rets.append({
+                            'vertices': verts_np,
+                            'faces': faces,
+                            'uvs': uvs,
+                            'basecolor_tex': None,
+                            'bump_tex': None,
+                            'roughness': None,
+                            'metallic': None
+                        })
 
         return rets, global_dict
 

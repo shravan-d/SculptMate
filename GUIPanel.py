@@ -42,20 +42,10 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Model Type",
         description="Select the model to use",
         items=[
-            ('lean', "Lean", "Generate a mesh"),
-            ('fast', "Better Geometry", "Generates meshes with mentioned geometry")
+            ('lean', "Lean", "Quickly generate a mesh"),
+            ('fast', "Pro", "Generates meshes with higher quality. Requires GPU configuration.")
         ],
         default='lean'
-    ) # type: ignore
-
-    remesh_type: bpy.props.EnumProperty(
-        name="Poly Type",
-        description="Select the type of polys in your mesh",
-        items=[
-            ('triangle', "Triangle", "Faces of the mesh are triangles"),
-            ('quad', "Quad", "Faces of the mesh are quads")
-        ],
-        default='triangle'
     ) # type: ignore
 
     vertex_simplification: bpy.props.EnumProperty(
@@ -100,19 +90,18 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             item_layout.prop_enum(my_props, "model_type", identifier)
             if identifier == 'lean' and os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
                 item_layout.enabled = True
-            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors'):
+            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors') and torch.cuda.is_available():
                 item_layout.enabled = True
             else:
                 item_layout.enabled = False
 
         layout.separator()
-        if context.scene.my_props.model_type == 'lean':
-            layout.prop(context.scene.my_props, "enable_textures")
         if context.scene.my_props.model_type == 'fast':
-            layout.prop(context.scene.my_props, "remesh_type", expand=True)
             layout.label(text="Vertex Count")
             layout.prop(context.scene.my_props, "vertex_simplification", expand=True)
-    
+        
+        layout.separator()
+        layout.prop(context.scene.my_props, "enable_textures")
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
             img = bpy.data.images.load(context.window_manager.input_image_path, check_existing=True)
@@ -220,8 +209,8 @@ class GenerationWorker(DataStore, threading.Thread):
             fast_generator.generate_mesh(
                 input_image=self.image, 
                 input_name=self.img_name, 
-                remesh_option=self.context.scene.my_props.remesh_type,
                 vertex_simplification_factor=self.context.scene.my_props.vertex_simplification,
+                enable_texture=self.context.scene.my_props.enable_textures
             )
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))

@@ -1,6 +1,6 @@
 bl_info = {
     "name": "SculptMate", 
-    "description": "Generate a 3D Human Mesh from an image", 
+    "description": "Generate a 3D mesh from an image",
     "author": "Shravan",
     "version": (0, 5, 0),
     "blender": (3, 2, 0),

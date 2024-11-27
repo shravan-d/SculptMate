@@ -8,13 +8,13 @@ import numpy as np
 # import pynim
 import torch
 import torch.nn.functional as F
-# import trimesh
 from jaxtyping import Float, Integer
 from torch import Tensor
 
 from .utils import dot
 from ..uv_unwrapper.unwrap import Unwrapper
 
+from ..utils import get_device
 
 class Mesh:
     def __init__(
@@ -54,7 +54,7 @@ class Mesh:
     @property
     def v_tex(self):
         if self._v_tex is None:
-            self.unwrap_uv()
+            self.unwrap_uv(get_device())
         return self._v_tex
 
     @property
@@ -151,7 +151,7 @@ class Mesh:
         v_pos = self.v_pos.detach().cpu().numpy().astype(np.float32)
         t_pos_idx = self.t_pos_idx.detach().cpu().numpy().astype(np.uint32)
 
-        # new_vert, new_faces = pynim.remesh(
+        # new_vert, new_faces = pynim.remesh( 
         #     v_pos,
         #     t_pos_idx,
         #     quad_vertex_count // 4,
@@ -166,8 +166,8 @@ class Mesh:
         # Briefly load in trimesh
         # mesh = trimesh.Trimesh(vertices=new_vert, faces=new_faces.astype(np.int32))
 
-        v_pos = torch.from_numpy(new_vert).to(self.v_pos).contiguous()
-        t_pos_idx = torch.from_numpy(new_faces.astype(np.int32)).to(self.t_pos_idx).contiguous()
+        # v_pos = torch.from_numpy(new_vert).to(self.v_pos).contiguous()
+        # t_pos_idx = torch.from_numpy(new_faces.astype(np.int32)).to(self.t_pos_idx).contiguous()
 
         # Create new mesh
         return Mesh(v_pos, t_pos_idx)

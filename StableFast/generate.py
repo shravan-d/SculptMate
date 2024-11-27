@@ -29,7 +29,11 @@ class Fast3DGenerator():
                 return 2
             return 0
 
-    def generate_mesh(self, input_image, input_name=None, remesh_option='triangle', texture_resolution=512, vertex_simplification_factor='high'):
+    def generate_mesh(self, input_image, input_name=None, 
+                      remesh_option='triangle', 
+                      texture_resolution=512, 
+                      vertex_simplification_factor='high',
+                      enable_texture=True):
         if self.model is None:
             return 1
         # try:
@@ -43,6 +47,7 @@ class Fast3DGenerator():
                     bake_resolution=texture_resolution,
                     remesh=remesh_option,
                     vertex_simplification_factor=vertex_simplification_factor,
+                    enable_texture=enable_texture
                 )
         if mesh is None:
             raise Exception('Mesh shape was zero')

@@ -6,6 +6,8 @@ from collections import deque
 from .common import UVFloat2, triangle_centroid_2d, cross_3d, normalize, EPSILON
 from .intersect import triangle_triangle_intersection, triangle_aabb_intersection
 
+BINS = 8
+
 # TODO: Should this be 2D or 3D?
 class AABB:
     def __init__(self):
@@ -85,9 +87,9 @@ class BVH:
         self.tri_count = len(indices) if indices is not None else 0
         self.triIdx = np.arange(self.tri_count)
         self.nodes = [BVHNode() for _ in range(self.tri_count * 2 + 64)]
-        self.nodes_used = 2
-
-        self.initialize_root()
+        if triangles is not None:
+            self.nodes_used = 2
+            self.initialize_root()
 
     def initialize_root(self):
         root = self.nodes[0]
@@ -118,8 +120,8 @@ class BVH:
             node_idx, centroid_bounds = node_queue.popleft()
             node = self.nodes[node_idx]
 
-            axis, split_pos = self.find_best_split_plane(node, centroid_bounds)
-            if split_pos == -1:
+            axis, split_pos, cost = self.find_best_split_plane(node, centroid_bounds)
+            if cost >= node.calculate_node_cost():
                 node.left = node.right = -1
                 continue
 
@@ -165,28 +167,39 @@ class BVH:
         best_cost = float("inf")
         best_axis, best_pos = -1, -1
 
-        for axis in range(3):  # 3D axis (x, y, z)
+        for axis in range(2):
             bounds_min, bounds_max = centroid_bounds.min[axis], centroid_bounds.max[axis]
             if bounds_min == bounds_max:
                 continue
 
-            bins = [AABB() for _ in range(8)]
+            bins = [{'bounds': AABB(), 'triCount': 0} for _ in range(8)]
             for i in range(node.start, node.end):
                 tri = self.triangles[self.triIdx[i]]
-                bin_idx = int((tri.centroid[axis] - bounds_min) * 8 / (bounds_max - bounds_min))
-                bins[min(bin_idx, 7)].grow(tri.centroid)
+                bin_idx = int((tri.centroid[axis] - bounds_min) * BINS / (bounds_max - bounds_min))
+                bins[min(bin_idx, BINS - 1)]['bounds'].grow(tri.a)
+                bins[min(bin_idx, BINS - 1)]['bounds'].grow(tri.b)
+                bins[min(bin_idx, BINS - 1)]['bounds'].grow(tri.c)
+                bins[min(bin_idx, BINS - 1)]['triCount'] += 1
+            
+            left_box, right_box = AABB(), AABB()
+            left_sum, right_sum = 0, 0
+            left_area, right_area = [None] * BINS, [None] * BINS
+            for i in range(BINS - 1):
+                left_sum += bins[i]['triCount']
+                left_box.grow_aabb(bins[i]['bounds'])
+                left_area[i] = left_sum * left_box.area()
+                right_sum += bins[BINS - 1 - i]['triCount']
+                right_box.grow_aabb(bins[BINS - 1 - i]['bounds'])
+                right_area[i] = right_sum * right_box.area()
 
-            left_area, right_area = 0, 0
-            for i in range(7):
-                left_area += bins[i].area()
-                right_area += bins[7 - i].area()
-                cost = left_area + right_area
+            for i in range(BINS - 1):
+                cost = left_area[i] + right_area[i]
                 if cost < best_cost:
                     best_cost = cost
                     best_axis = axis
                     best_pos = i + 1
 
-        return best_axis, best_pos
+        return best_axis, best_pos, best_cost
 
     def intersect(self, triangle: Triangle) -> List[int]:
         intersected = []
@@ -202,9 +215,9 @@ class BVH:
                     if tri != triangle and triangle.overlaps(tri):
                         intersected.append(self.indices[self.triIdx[i]])
             else:
-                if self.nodes[node.left].bbox.overlaps(triangle):
-                    stack.append(node.left)
                 if self.nodes[node.right].bbox.overlaps(triangle):
                     stack.append(node.right)
+                if self.nodes[node.left].bbox.overlaps(triangle):
+                    stack.append(node.left)
 
         return intersected

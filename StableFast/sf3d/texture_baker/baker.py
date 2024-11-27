@@ -12,6 +12,7 @@ class TextureBaker(nn.Module):
         uv: Tensor,
         face_indices: Tensor,
         bake_resolution: int,
+        device
     ) -> Tensor:
         """
         Rasterize the UV coordinates to a barycentric coordinates
@@ -26,7 +27,7 @@ class TextureBaker(nn.Module):
             Tensor, bake_resolution bake_resolution 4, float: Rasterized map
         """
         return rasterize(
-            uv, face_indices.to(torch.int32), bake_resolution, device='cuda:0'
+            uv, face_indices.to(torch.int32), bake_resolution, device=device
         )
 
     def get_mask(self, rast: Tensor) -> Tensor:
@@ -46,6 +47,7 @@ class TextureBaker(nn.Module):
         attr: Tensor,
         rast: Tensor,
         face_indices: Tensor,
+        device
     ) -> Tensor:
         """
         Interpolate the attributes using the rasterized map
@@ -60,7 +62,7 @@ class TextureBaker(nn.Module):
             Tensor, bake_resolution bake_resolution 3, float: Interpolated attributes
         """
         return interpolate(
-            attr, face_indices.to(torch.int32), rast, device='cuda:0'
+            attr, face_indices.to(torch.int32), rast, device=device
         )
 
     def forward(
@@ -69,6 +71,7 @@ class TextureBaker(nn.Module):
         uv: Tensor,
         face_indices: Tensor,
         bake_resolution: int,
+        device
     ) -> Tensor:
         """
         Bake the texture
@@ -82,5 +85,5 @@ class TextureBaker(nn.Module):
         Returns:
             Tensor, bake_resolution bake_resolution 3, float: Baked texture
         """
-        rast = self.rasterize(uv, face_indices, bake_resolution)
-        return self.interpolate(attr, rast, face_indices, uv)
+        rast = self.rasterize(uv, face_indices, bake_resolution, device)
+        return self.interpolate(attr, rast, face_indices, uv, device)

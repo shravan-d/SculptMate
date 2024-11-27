@@ -4,11 +4,20 @@ import numpy as np
 
 
 class Triangle:
-    def __init__(self, v0: UVFloat3, v1: UVFloat3, v2: UVFloat3):
-        self.a = v0
-        self.b = v1
-        self.c = v2
-        self.centroid = triangle_centroid_3d(v0, v1, v2)
+    def __init__(self, v0, v1, v2):
+        if (type(v0) == UVFloat2):
+            self.a = UVFloat3(v0.x, v0.y, 0)
+        else:
+            self.a = v0
+        if (type(v1) == UVFloat2):
+            self.b = UVFloat3(v1.x, v1.y, 0)
+        else:
+            self.b = v1
+        if (type(v2) == UVFloat2):
+            self.c = UVFloat3(v2.x, v2.y, 0)
+        else:
+            self.c = v2
+        self.centroid = triangle_centroid_3d(self.a, self.b, self.c)
 
     def overlaps(self, other: 'Triangle') -> bool:
         return triangle_triangle_intersection(self.a, self.b, self.c, other.a, other.b, other.c)
@@ -215,9 +224,9 @@ def triangle_triangle_intersection(
         return False
 
     # Determine 3D orientations for vertices of t1 relative to t2
-    o1a = orient2d(t2.a, t2.b, t2.c)
-    o1b = orient2d(t2.a, t2.b, t1.b)
-    o1c = orient2d(t2.a, t2.b, t1.c)
+    o1a = orient3d(t2.a, t2.b, t2.c, t1.a)
+    o1b = orient3d(t2.a, t2.b, t2.c, t1.b)
+    o1c = orient3d(t2.a, t2.b, t2.c, t1.c)
 
     # If all vertices of t1 lie on the same side of t2, they don't intersect
     if o1a == o1b == o1c:
@@ -304,9 +313,7 @@ def compute_line_intersection(t1: Triangle, t2: Triangle, target: List[UVFloat3]
         target: A list to store intersection points.
     """
     # Get the normals of the two triangles
-    n1, n2 = UVFloat3(), UVFloat3()
-    t1.get_normal(n1)
-    t2.get_normal(n2)
+    n1, n2 = t1.get_normal(n1), t2.get_normal(n2)
 
     # Check orientation of the triangle vertices relative to each other
     o1 = orient2d(t1.a, t1.c, t2.b, t2.a)  # Orientation of t1 relative to t2

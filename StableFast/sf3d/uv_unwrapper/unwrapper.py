@@ -1,6 +1,9 @@
 import numpy as np
 from typing import List, Set
-from .bvh import BVH, Triangle, UVFloat3
+from .bvh import BVH, Triangle
+from .common import UVFloat3, UVFloat2, triangle_centroid_3d
+import concurrent.futures
+
 
 def create_bvhs(bvhs: List[BVH], triangles: List[Triangle], triangle_per_face: List[Set[int]],
                 num_faces: int, start: int, end: int):
@@ -22,7 +25,6 @@ def create_bvhs(bvhs: List[BVH], triangles: List[Triangle], triangle_per_face: L
     
     return bvhs
 
-import concurrent.futures
 
 def process_intersections(i, assign_indices_ptr, offset, triangles, bvhs, unique_intersections):
     if assign_indices_ptr[i] < offset:
@@ -125,11 +127,16 @@ def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, fa
     for i in range(num_faces):
         face_idx = i * 3
         triangles[i] = Triangle(
-            UVFloat3(face_uv[face_idx][0], face_uv[face_idx][1], 0),
-            UVFloat3(face_uv[face_idx + 1][0], face_uv[face_idx + 1][1], 0),
-            UVFloat3(face_uv[face_idx + 2][0], face_uv[face_idx + 2][1], 0)
+            UVFloat2(face_uv[face_idx][0], face_uv[face_idx][1]),
+            UVFloat2(face_uv[face_idx + 1][0], face_uv[face_idx + 1][1]),
+            UVFloat2(face_uv[face_idx + 2][0], face_uv[face_idx + 2][1])
         )
-        vertex_tri_centroids[i] = triangles[i].centroid
+
+        v0 = UVFloat3(vertices[indices[i][0]][0], vertices[indices[i][0]][1], vertices[indices[i][0]][2])
+        v1 = UVFloat3(vertices[indices[i][1]][0], vertices[indices[i][1]][1], vertices[indices[i][1]][2])
+        v2= UVFloat3(vertices[indices[i][2]][0], vertices[indices[i][2]][1], vertices[indices[i][2]][2])
+
+        vertex_tri_centroids[i] = triangle_centroid_3d(v0, v1, v2)
 
         # Assign the triangle to the face index
         triangle_per_face[face_index[i]].add(i)
@@ -149,7 +156,7 @@ def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, fa
     print("Intersection Check time:", t3 - t2)
     # Step 3: Create new BVHs for the second set
     new_bvhs = [None] * 6
-    bvhs = create_bvhs(new_bvhs, triangles, triangle_per_face, num_faces, 6, 12)
+    new_bvhs = create_bvhs(new_bvhs, triangles, triangle_per_face, num_faces, 6, 12)
 
     assign_indices = perform_intersection_check(new_bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 6, triangle_per_face)
 
