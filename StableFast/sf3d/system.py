@@ -346,7 +346,6 @@ class SF3D(BaseModule):
                         rets.append(None)
                         continue
                     
-                    print(vertex_simplification_factor)
                     if vertex_simplification_factor == 'high':
                         vertex_count = round(0.5 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'med':
@@ -358,10 +357,6 @@ class SF3D(BaseModule):
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
-
-                    verts_np = convert_data(mesh.v_pos)
-                    faces = convert_data(mesh.t_pos_idx)
-                    uvs = convert_data(mesh.v_tex)
 
                     if enable_texture:
                         t3 = time.time()
@@ -509,6 +504,10 @@ class SF3D(BaseModule):
                         t5 = time.time()
                         print('Baking Time (s):', str(t5 - t4 + 1))
 
+                        verts_np = convert_data(mesh.v_pos)
+                        faces = convert_data(mesh.t_pos_idx)
+                        uvs = convert_data(mesh.v_tex)
+
                         rets.append({
                             'vertices': verts_np,
                             'faces': faces,
@@ -519,6 +518,10 @@ class SF3D(BaseModule):
                             'metallic': metallic
                         })
                     else:
+                        verts_np = convert_data(mesh.v_pos)
+                        faces = convert_data(mesh.t_pos_idx)
+                        uvs = convert_data(mesh.v_tex)
+
                         rets.append({
                             'vertices': verts_np,
                             'faces': faces,

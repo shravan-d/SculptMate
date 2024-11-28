@@ -1,5 +1,5 @@
 from typing import List
-from .common import UVFloat2, dot_3d, orient2d, EPSILON, UVFloat3, cross_3d, normalize, distance_3d, triangle_centroid_3d, orient3d
+from .common import Matrix4,UVFloat2, dot_3d, orient2d, EPSILON, UVFloat3, cross_3d, normalize, distance_3d, triangle_centroid_3d, orient3d
 import numpy as np
 
 
@@ -91,60 +91,60 @@ def triangle_aabb_intersection(
     return False
 
 
-def clip_triangle(t1: Triangle, t2: Triangle) -> List[UVFloat2]:
+def clip_triangle(t1: Triangle, t2: Triangle, intersections: List) -> List[UVFloat2]:
     """
     Clip one triangle (t2) against another triangle (t1).
     """
     clip = [t1.a, t1.b, t1.c]
     output = [t2.a, t2.b, t2.c]
+    orients = [0] * len(output) * 3
 
     for i in range(3):  # Clip against each edge of t1
         input_polygon = output[:]
         output = []
-
-        clip_edge_start = clip[i]
-        clip_edge_end = clip[(i + 1) % 3]
+        i_prev = (i + 2) % 3
+        
+        for j in range(len(input_polygon)):
+            orients[j] = orient2d(clip[i_prev], clip[i], input_polygon[j])
 
         for j in range(len(input_polygon)):
-            current_vertex = input_polygon[j]
-            prev_vertex = input_polygon[j - 1]
+            j_prev = (j - 1 + len(input_polygon)) % len(input_polygon)
 
-            # Check orientation of current vertex relative to the clip edge
-            current_orientation = orient2d(clip_edge_start, clip_edge_end, current_vertex)
-            prev_orientation = orient2d(clip_edge_start, clip_edge_end, prev_vertex)
+            if orients[j] >= 0:
+                if orients[j_prev] < 0:
+                    inter = line_intersection(clip[i_prev], clip[i], input_polygon[j_prev], input_polygon[j])
+                    output.append(UVFloat3(inter.x, inter.y, inter.z))
+                output.append(UVFloat3(input_polygon[j].x, input_polygon[j].y, input_polygon[j].z))
+            elif orients[j_prev] >= 0:
+                inter = line_intersection(clip[i_prev], clip[i], input_polygon[j_prev], input_polygon[j])
+                output.append(UVFloat3(inter.x, inter.y, inter.z))
 
-            # If current vertex is inside
-            if current_orientation >= 0:
-                # If previous vertex is outside, add intersection
-                if prev_orientation < 0:
-                    intersection = line_intersection(
-                        clip_edge_start, clip_edge_end, prev_vertex, current_vertex
-                    )
-                    output.append(intersection)
-                output.append(current_vertex)
-            elif prev_orientation >= 0:
-                # If current is outside and previous is inside, add intersection
-                intersection = line_intersection(
-                    clip_edge_start, clip_edge_end, prev_vertex, current_vertex
-                )
-                output.append(intersection)
+        for vert in output:
+            j = 0
+            same_found = False
+            while j < len(intersections) and not same_found:
+                same_found = distance_3d(vert, intersections[j]) < 1e-6
+                j += 1
 
-    return output
+            if not same_found:
+                intersections.append(vert)
+
+    return intersections
 
 
 def line_intersection(a1: UVFloat2, b1: UVFloat2, a2: UVFloat2, b2: UVFloat2) -> UVFloat2:
     """
     Find the intersection point of two line segments.
     """
-    dx1, dy1 = b1.x - a1.x, b1.y - a1.y
-    dx2, dy2 = b2.x - a2.x, b2.y - a2.y
+    dx1, dy1 = a1.x - b1.x, a1.y - b1.y
+    dx2, dy2 = a2.x - b2.x, a2.y - b2.y
 
     denominator = dx1 * dy2 - dx2 * dy1
-    if abs(denominator) < EPSILON:
-        raise ValueError("Lines are parallel or coincident")
+    
+    n1 = a1.x * b1.y - a1.y * b1.x
+    n2 = a2.x * b2.y - a2.y * b2.x
 
-    t = ((a1.x - a2.x) * dy2 - (a1.y - a2.y) * dx2) / denominator
-    return UVFloat2(a1.x + t * dx1, a1.y + t * dy1)
+    return UVFloat3((n1 * dx2 - n2 * dx1) / denominator, (n1 * dy2 - n2 * dy1) / denominator, 0)
 
 
 def make_tri_vertex_alone(tri: Triangle, oa: int, ob: int, oc: int):
@@ -156,16 +156,27 @@ def make_tri_vertex_alone(tri: Triangle, oa: int, ob: int, oc: int):
     """
     if oa == ob:
         # Vertex `c` is alone, permute right so `c` becomes `a`
-        permute_tri_right(tri)
+        tri = permute_tri_right(tri)
     elif oa == oc:
         # Vertex `b` is alone, permute left so `b` becomes `a`
-        permute_tri_left(tri)
+        tri = permute_tri_left(tri)
     elif ob != oc:
         # Ensure `a` is on the positive side
         if ob > 0:
-            permute_tri_left(tri)
+            tri =permute_tri_left(tri)
         elif oc > 0:
-            permute_tri_right(tri)
+            tri = permute_tri_right(tri)
+
+    return tri
+
+
+def make_tri_counter_clockwise(tri: Triangle):
+    if (orient2d(tri.a, tri.b, tri.c) < 0):
+        temp = tri.c
+        tri.c = tri.b
+        tri.b = temp
+
+    return tri
 
 
 def permute_tri_left(tri: Triangle):
@@ -176,6 +187,7 @@ def permute_tri_left(tri: Triangle):
     tri.a = tri.b
     tri.b = tri.c
     tri.c = temp
+    return tri
 
 
 def permute_tri_right(tri: Triangle):
@@ -186,6 +198,7 @@ def permute_tri_right(tri: Triangle):
     tri.c = tri.b
     tri.b = tri.a
     tri.a = temp
+    return tri
 
 
 def polygon_area(polygon: List[UVFloat3]) -> float:
@@ -205,7 +218,7 @@ def polygon_area(polygon: List[UVFloat3]) -> float:
         p2 = polygon[(i + 1) % len(polygon)]  # Next vertex, wrapping around
         normal += cross_3d(p1, p2)
 
-    return normalize(normal).magnitude() / 2.0  # Area is half the normal magnitude
+    return normal.magnitude() / 2.0  # Area is half the normal magnitude
 
 
 def triangle_triangle_intersection(
@@ -228,36 +241,181 @@ def triangle_triangle_intersection(
     o1b = orient3d(t2.a, t2.b, t2.c, t1.b)
     o1c = orient3d(t2.a, t2.b, t2.c, t1.c)
 
-    # If all vertices of t1 lie on the same side of t2, they don't intersect
-    if o1a == o1b == o1c:
-        return False
-
-    # If coplanar, handle coplanar intersection
-    if o1a == 0 and o1b == 0 and o1c == 0:
-        intersections = []
-        coplanar_intersect(t1, t2, intersections)
-        area = polygon_area(intersections)
-        return area > EPSILON
-
     # Perform cross intersection
     intersections = []
-    intersects = cross_intersect(t1, t2, o1a, o1b, o1c, intersections)
+    if o1a == o1b and o1a == o1c:
+        if o1a == 0:
+            intersects, intersections = coplanar_intersect(t1, t2, intersections)
+        else:
+            intersects = False
+    else:
+        intersects, intersections = cross_intersect(t1, t2, o1a, o1b, o1c, intersections)
 
     if intersects:
         # Compute area of intersection polygon
         area = polygon_area(intersections)
-        if area < EPSILON or not np.isfinite(area):
+        if area < 1e-10 or not np.isfinite(area):
             return False
+
     return intersects
 
+
+def intersection_type_r1(t1, t2):
+    p1 = t1.a
+    q1 = t1.b
+    r1 = t1.c
+    p2 = t2.a
+    r2 = t2.c
+
+    # I
+    if orient2d(r2, p2, q1) >= 0:
+        # II.a
+        if orient2d(r2, p1, q1) >= 0:
+            # III.a
+            if orient2d(p1, p2, q1) >= 0:
+                return True
+            else:
+                # IV.a
+                if orient2d(p1, p2, r1) >= 0:
+                    # V
+                    if orient2d(q1, r1, p2) >= 0:
+                        return True
+        else:
+            # II.b
+            if orient2d(r2, p2, r1) >= 0:
+                # III.b
+                if orient2d(q1, r1, r2) >= 0:
+                    # IV.b
+                    if orient2d(p1, p2, r1) >= 0:
+                        return True
+    return False
+
+
+def intersection_type_r2(t1, t2):
+    p1 = t1.a
+    q1 = t1.b
+    r1 = t1.c
+    p2 = t2.a
+    q2 = t2.b
+    r2 = t2.c
+
+    # I
+    if orient2d(r2, p2, q1) >= 0:
+        # II.a
+        if orient2d(q2, r2, q1) >= 0:
+            # III.a
+            if orient2d(p1, p2, q1) >= 0:
+                # IV.a
+                if orient2d(p1, q2, q1) <= 0:
+                    return True
+            else:
+                # IV.b
+                if orient2d(p1, p2, r1) >= 0:
+                    # V.a
+                    if orient2d(r2, p2, r1) <= 0:
+                        return True
+        else:
+            # III.b
+            if orient2d(p1, q2, q1) <= 0:
+                # IV.c
+                if orient2d(q2, r2, r1) >= 0:
+                    # V.b
+                    if orient2d(q1, r1, q2) >= 0:
+                        return True
+    else:
+        # II.b
+        if orient2d(r2, p2, r1) >= 0:
+            # III.c
+            if orient2d(q1, r1, r2) >= 0:
+                # IV.d
+                if orient2d(r1, p1, p2) >= 0:
+                    return True
+            else:
+                # IV.e
+                if orient2d(q1, r1, q2) >= 0:
+                    # V.c
+                    if orient2d(q2, r2, r1) >= 0:
+                        return True
+    return False
 
 def coplanar_intersect(t1: Triangle, t2: Triangle, intersections: List[UVFloat2]):
     """
     Handle coplanar intersection of two triangles.
     """
-    # Perform clipping to compute the intersection polygon
-    clipped = clip_triangle(t1, t2)
-    intersections.extend(clipped)
+    normal = t1.get_normal()
+    normal = normalize(normal)
+    u = normalize(t1.a - t1.b)
+    v = cross_3d(normal, u)
+
+    u += t1.a
+    v += t1.a
+    normal += t1.a
+
+    _matrix = Matrix4()
+    _matrix.set(t1.a.x, u.x, v.x, normal.x, t1.a.y, u.y, v.y, normal.y, t1.a.z, u.z, v.z, normal.z, 1, 1, 1, 1)
+
+    _affineMatrix = Matrix4()
+    _affineMatrix.set(0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1)
+
+    _matrix.invert()  # Invert the _matrix
+    _matrix = _affineMatrix * _matrix
+
+    t1.a = _matrix.apply_to_point(t1.a)
+    t1.b = _matrix.apply_to_point(t1.b)
+    t1.c = _matrix.apply_to_point(t1.c)
+    t2.a = _matrix.apply_to_point(t2.a)
+    t2.b = _matrix.apply_to_point(t2.b)
+    t2.c = _matrix.apply_to_point(t2.c)
+
+    t1 = make_tri_counter_clockwise(t1)
+    t2 = make_tri_counter_clockwise(t2)
+
+    p1 = t1.a
+    p2 = t2.a
+    q2 = t2.b
+    r2 = t2.c
+
+    o_p2q2 = orient2d(p2, q2, p1)
+    o_q2r2 = orient2d(q2, r2, p1)
+    o_r2p2 = orient2d(r2, p2, p1)
+
+    intersecting = False
+    if o_p2q2 >= 0:
+        if o_q2r2 >= 0:
+            if o_r2p2 >= 0:
+                intersecting = True  # + + +
+            else:
+                intersecting = intersection_type_r1(t1, t2)  # + + -
+        else:
+            if o_r2p2 >= 0:
+                t2 = permute_tri_right(t2)
+                intersecting = intersection_type_r1(t1, t2)  # + - +
+            else:
+                intersecting = intersection_type_r2(t1, t2)  # + - -
+    else:
+        if o_q2r2 >= 0:
+            if o_r2p2 >= 0:
+                t2 = permute_tri_left(t2)
+                intersecting = intersection_type_r1(t1, t2)  # - + +
+            else:
+                t2 = permute_tri_left(t2)
+                intersecting = intersection_type_r2(t1, t2)  # - + -
+        else:
+            if o_r2p2 >= 0:
+                t2 = permute_tri_right(t2)
+                intersecting = intersection_type_r2(t1, t2)  # - - +
+            else:
+                print("Triangles should not be flat.")
+                return False, []
+
+    if intersecting:
+        intersections = clip_triangle(t1, t2, intersections)
+
+        _matrix.invert()
+        for point in intersections:
+            point = _matrix.apply_to_point(point)
+
+    return intersecting, intersections
 
 def make_tri_vertex_positive(tri: Triangle, other: Triangle):
     """
@@ -269,11 +427,13 @@ def make_tri_vertex_positive(tri: Triangle, other: Triangle):
         other: The triangle that we want to compare against.
     """
     # Compute the orientation of tri relative to the other triangle
-    o = orient2d(other.a, other.b, other.c, tri.a)
+    o = orient3d(other.a, other.b, other.c, tri.a)
     
     # If the orientation is negative, permute the vertices of tri to make it positive
     if o < 0:
-        permute_tri_right(tri)
+        tri.b, tri.c = tri.c, tri.b
+
+    return tri
 
 def intersectPlane(a: UVFloat3, b: UVFloat3, p: UVFloat3, n: UVFloat3, target: UVFloat3):
     """
@@ -302,6 +462,7 @@ def intersectPlane(a: UVFloat3, b: UVFloat3, p: UVFloat3, n: UVFloat3, target: U
     target.y = a.y + u.y
     target.z = a.z + u.z
 
+    return target
 
 def compute_line_intersection(t1: Triangle, t2: Triangle, target: List[UVFloat3]):
     """
@@ -316,8 +477,8 @@ def compute_line_intersection(t1: Triangle, t2: Triangle, target: List[UVFloat3]
     n1, n2 = t1.get_normal(n1), t2.get_normal(n2)
 
     # Check orientation of the triangle vertices relative to each other
-    o1 = orient2d(t1.a, t1.c, t2.b, t2.a)  # Orientation of t1 relative to t2
-    o2 = orient2d(t1.a, t1.b, t2.c, t2.a)  # Orientation of t1 relative to t2
+    o1 = orient3d(t1.a, t1.c, t2.b, t2.a)  # Orientation of t1 relative to t2
+    o2 = orient3d(t1.a, t1.b, t2.c, t2.a)  # Orientation of t1 relative to t2
 
     # Compute the intersection points based on the orientations
     i1, i2 = UVFloat3(), UVFloat3()  # Intersection points
@@ -325,27 +486,28 @@ def compute_line_intersection(t1: Triangle, t2: Triangle, target: List[UVFloat3]
     if o1 > 0:
         if o2 > 0:
             # Case 1: Both orientations positive
-            intersectPlane(t1.a, t1.c, t2.a, n2, i1)
-            intersectPlane(t2.a, t2.c, t1.a, n1, i2)
+            i1 = intersectPlane(t1.a, t1.c, t2.a, n2, i1)
+            i2 = intersectPlane(t2.a, t2.c, t1.a, n1, i2)
         else:
             # Case 2: One orientation positive, other negative
-            intersectPlane(t1.a, t1.c, t2.a, n2, i1)
-            intersectPlane(t1.a, t1.b, t2.a, n2, i2)
+            i1 = intersectPlane(t1.a, t1.c, t2.a, n2, i1)
+            i2 = intersectPlane(t1.a, t1.b, t2.a, n2, i2)
     else:
         if o2 > 0:
             # Case 3: One orientation negative, other positive
-            intersectPlane(t2.a, t2.b, t1.a, n1, i1)
-            intersectPlane(t2.a, t2.c, t1.a, n1, i2)
+            i1 = intersectPlane(t2.a, t2.b, t1.a, n1, i1)
+            i2 = intersectPlane(t2.a, t2.c, t1.a, n1, i2)
         else:
             # Case 4: Both orientations negative
-            intersectPlane(t2.a, t2.b, t1.a, n1, i1)
-            intersectPlane(t1.a, t1.b, t2.a, n2, i2)
+            i1 = intersectPlane(t2.a, t2.b, t1.a, n1, i1)
+            i2 = intersectPlane(t1.a, t1.b, t2.a, n2, i2)
 
     # Add the intersection points to the target list
     target.append(i1)
     if distance_3d(i1, i2) >= EPSILON:
         target.append(i2)
 
+    return target
 
 
 def cross_intersect(
@@ -362,18 +524,18 @@ def cross_intersect(
         return False
 
     # Orient t1 and t2 for intersection computation
-    make_tri_vertex_alone(t1, o1a, o1b, o1c)
-    make_tri_vertex_alone(t2, o2a, o2b, o2c)
+    t1 = make_tri_vertex_alone(t1, o1a, o1b, o1c)
+    t2 = make_tri_vertex_alone(t2, o2a, o2b, o2c)
 
     # Ensure the vertex on the positive side
-    make_tri_vertex_positive(t2, t1)
-    make_tri_vertex_positive(t1, t2)
+    t2 = make_tri_vertex_positive(t2, t1)
+    t1 = make_tri_vertex_positive(t1, t2)
 
     # Perform oriented intersection checks
-    o1 = orient2d(t1.a, t1.b, t2.a)
-    o2 = orient2d(t1.a, t1.c, t2.c)
+    o1 = orient3d(t1.a, t1.b, t2.a, t2.b)
+    o2 = orient3d(t1.a, t1.c, t2.c, t2.a)
 
     if o1 <= 0 and o2 <= 0:
-        compute_line_intersection(t1, t2, intersections)
-        return True
-    return False
+        intersections = compute_line_intersection(t1, t2, intersections)
+        return True, intersections
+    return False, intersections

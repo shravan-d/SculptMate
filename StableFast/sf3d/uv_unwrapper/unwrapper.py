@@ -18,7 +18,6 @@ def create_bvhs(bvhs: List[BVH], triangles: List[Triangle], triangle_per_face: L
             j += 1
 
         if num_triangles == 0:
-            continue
             bvhs[i - start] = BVH()  # Default constructor
         else:
             bvhs[i - start] = BVH(triangles_per_face, indices)
@@ -106,7 +105,7 @@ def perform_intersection_check(bvhs: List[BVH], num_bvhs: int, triangles: List[T
         triangle_per_face[intersect_idx].remove(int_idx)
         triangle_per_face[new_index].add(int_idx)
     
-    return assign_indices_ptr
+    return assign_indices_ptr, triangle_per_face
 
 
 def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, face_uv: np.ndarray,
@@ -150,7 +149,7 @@ def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, fa
     
     t2 = time.time()
     print("BVH Create time:", t2 - t1)
-    assign_indices = perform_intersection_check(bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 0, triangle_per_face)
+    assign_indices, triangle_per_face = perform_intersection_check(bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 0, triangle_per_face)
     
     t3 = time.time()
     print("Intersection Check time:", t3 - t2)
@@ -158,6 +157,6 @@ def assign_faces_uv_to_atlas_index(vertices: np.ndarray, indices: np.ndarray, fa
     new_bvhs = [None] * 6
     new_bvhs = create_bvhs(new_bvhs, triangles, triangle_per_face, num_faces, 6, 12)
 
-    assign_indices = perform_intersection_check(new_bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 6, triangle_per_face)
+    assign_indices, triangle_per_face = perform_intersection_check(new_bvhs, 6, triangles, vertex_tri_centroids, assign_indices, num_faces, 6, triangle_per_face)
 
     return assign_indices

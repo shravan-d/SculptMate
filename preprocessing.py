@@ -70,9 +70,9 @@ def image_preprocess_nosave(input_image, lower_contrast=True, rescale=True):
    return Image.fromarray((rgb * 255).astype(np.uint8)), scale
 
 
-def preprocess_image(img_path, ratio=0.85, alpha=False):
+def preprocess_image(img_path, ratio=0.85, use_alpha=False):
     # os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
-    if alpha:
+    if use_alpha:
         input_raw = Image.open(img_path).convert("RGBA")
     else:
         input_raw = Image.open(img_path)
@@ -110,7 +110,7 @@ def preprocess_image(img_path, ratio=0.85, alpha=False):
         constant_values=((0, 0), (0, 0), (0, 0)),
     )
 
-    if alpha:
+    if use_alpha:
         return Image.fromarray(new_image, mode="RGBA")
 
     input_image = Image.fromarray(new_image)

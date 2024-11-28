@@ -291,7 +291,7 @@ class Reconfigure_Torch(DataStore, bpy.types.Operator):
     bl_idname = "example.reconfigure_torch"
     bl_label = "Reconfigure GPU Support"
     bl_description = ("If you installed without GPU support, this reconfigures the add-on to use GPU."
-                      "Internet connection is required. Expected to take ~2 minutes.")
+                      "Make sure you have a GPU in your computer, otherwise this fails.")
     bl_options = {"REGISTER", "INTERNAL"}
 
     @classmethod
@@ -332,9 +332,8 @@ class TorchReconWorker(threading.Thread):
         try:
             environ_copy = dict(os.environ)
             environ_copy["PYTHONNOUSERSITE"] = "1"
-            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torch"], check=True, env=environ_copy)
+            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torchvision", "torch"], check=True, env=environ_copy)
             subprocess.run([sys.executable, "-m", "pip", "install", "torch==2.3.0", "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True, env=environ_copy)
-
         except (subprocess.CalledProcessError, ImportError) as err:
             print('[Installation Error]', err)
             self.context.scene.buttons_enabled = True
