@@ -39,6 +39,7 @@ dependencies = (Dependency(module="numpy", package=None, name=None),
                 Dependency(module="jsonschema", package=None, name=None),
                 Dependency(module="jaxtyping", package=None, name=None),
                 Dependency(module="gpytoolbox", package=None, name=None),
+                Dependency(module="gdown", package=None, name=None),
                 Dependency(module="open_clip_torch==2.24.0", package=None, name=None),
                 Dependency(module="scikit-image", package=None, name=None))
 
@@ -244,7 +245,10 @@ class DownloadWorker(threading.Thread):
             if self.download_type == 'Trippo':
                 urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.2/model.ckpt", ROOT_DIR + "/TripoSR/checkpoints/model.ckpt")
             elif self.download_type == 'Fast':
-                urllib.request.urlretrieve("https://github.com/shravan-d/SculptMate/releases/download/v0.5/model.safetensors", ROOT_DIR + "/StableFast/checkpoints/model.safetensors")
+                import gdown
+                file_id = "1Jp5qWhkPGQsNWWmtBRtM3sTXVHHH5RuT"
+                url = f"https://drive.google.com/uc?id={file_id}"
+                gdown.download(url, ROOT_DIR + "/StableFast/checkpoints/model.safetensors", quiet=False)
             else:
                 pass
         except Exception as err:
@@ -457,6 +461,7 @@ def register():
         import jaxtyping
         import gpytoolbox
         import open_clip
+        import gdown
         dependencies_installed = True
     except ModuleNotFoundError as err:
         print('[Missing Module Error]', err)
