@@ -193,7 +193,7 @@ class Download_Lean_Model(DataStore, bpy.types.Operator):
 
 class Download_Fast_Model(DataStore, bpy.types.Operator):
     bl_idname = "example.download_checkpoint_fast"
-    bl_label = "Get Checkpoint (Better Geometry)"
+    bl_label = "Get Checkpoint (Pro)"
     bl_description = ("Downloads the required model checkpoints required for generation. "
                       "Internet connection is required. Expected to take ~3 minutes.")
     bl_options = {"REGISTER", "INTERNAL"}
@@ -344,6 +344,8 @@ class TorchReconWorker(threading.Thread):
             self.error_callback()
             return
         self.finish_callback()
+        global dependencies_installed
+        dependencies_installed = True
         self.context.scene.buttons_enabled = True
 
 class InstallationWorker(threading.Thread):

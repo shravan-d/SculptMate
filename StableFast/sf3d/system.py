@@ -329,16 +329,13 @@ class SF3D(BaseModule):
             )
         if self.global_estimator is not None and estimate_illumination:
             global_dict.update(self.global_estimator(non_postprocessed_codes))
-        import time
-        t1 = time.time()
+
         with torch.no_grad():
             with torch.autocast(
                 device_type=self.device.type, enabled=False
             ) if "cuda" == self.device.type else nullcontext():
                 meshes = self.triplane_to_meshes(scene_codes)
                 
-                t2 = time.time()
-                print('Generation Time (s):', str(t2 - t1 + 1))
                 rets = []
                 for i, mesh in enumerate(meshes):
                     # Check for empty mesh
@@ -347,22 +344,18 @@ class SF3D(BaseModule):
                         continue
                     
                     if vertex_simplification_factor == 'high':
-                        vertex_count = round(0.5 * mesh.v_pos.shape[0])
+                        vertex_count = round(0.75 * mesh.v_pos.shape[0])
                     elif vertex_simplification_factor == 'med':
-                        vertex_count = round(0.3 * mesh.v_pos.shape[0])
+                        vertex_count = round(0.4 * mesh.v_pos.shape[0])
                     else:
-                        vertex_count = round(0.05 * mesh.v_pos.shape[0])
+                        vertex_count = round(0.1 * mesh.v_pos.shape[0])
 
                     if remesh == "triangle":
                         mesh = mesh.triangle_remesh(triangle_vertex_count=vertex_count)
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
 
-                    t3 = time.time()
                     mesh.unwrap_uv()
-                    t4 = time.time()
-                    print('Unwrap Time (s):', str(t4 - t3))
-
                     if enable_texture:
                         # Build textures
                         rast = self.baker.rasterize(
@@ -503,9 +496,6 @@ class SF3D(BaseModule):
                             )
                         else:
                             bump_tex = None
-                        
-                        t5 = time.time()
-                        print('Baking Time (s):', str(t5 - t4))
 
                         verts_np = convert_data(mesh.v_pos)
                         faces = convert_data(mesh.t_pos_idx)
