@@ -4,10 +4,12 @@ __pycache__/
 *$py.class
 
 sculptmate_updater/
+**/uv_unwrapper_python/**
 
 *.onnx
 *.ckpt
 *.pt
+*.safetensors
 *.pth
 
 # C extensions

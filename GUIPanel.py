@@ -9,9 +9,13 @@ import threading
 from .preprocessing import preprocess_image
 from .utils import label_multiline
 from .TripoSR.generate import TripoGenerator
+from .StableFast.generate import Fast3DGenerator
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+trippo_generator = None
+fast_generator = None
+
 
 def create_image_textures(image_path, texture_name):
     ideal_image = bpy.data.images.load(image_path, check_existing=True) 
@@ -38,25 +42,26 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Model Type",
         description="Select the model to use",
         items=[
-            ('lean', "Lean", "Generate a mesh"),
-            ('fast', "Better Geometry", "Generates meshes with mentioned geometry")
+            ('lean', "Lean", "Quickly generate a mesh"),
+            ('fast', "Pro", "Generates meshes with higher quality. Requires GPU configuration.")
         ],
         default='lean'
     ) # type: ignore
 
-    remesh_type: bpy.props.EnumProperty(
-        name="Poly Type",
-        description="Select the type of polys in your mesh",
+    vertex_simplification: bpy.props.EnumProperty(
+        name="Vertex Count",
+        description="Controls the number of vertices in your mesh",
         items=[
-            ('triangle', "Triangle", "Faces of the mesh are triangles"),
-            ('quad', "Quad", "Faces of the mesh are quads")
+            ('low', "Low", ""),
+            ('medium', "Medium", ""),
+            ('high', "High", ""),
         ],
-        default='triangle'
+        default='low'
     ) # type: ignore
         
     enable_textures: bpy.props.BoolProperty(
         name='Transfer Textures', 
-        description="Transfer texture from the image to the generated model.",
+        description="Transfer texture from the image to your mesh.",
         default=False
     ) # type: ignore
 
@@ -85,17 +90,18 @@ class UI_PT_main(DataStore, bpy.types.Panel):
             item_layout.prop_enum(my_props, "model_type", identifier)
             if identifier == 'lean' and os.path.isfile(ROOT_DIR + '/TripoSR/checkpoints/model.ckpt'):
                 item_layout.enabled = True
-            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/fast-3d/checkpoints/model.safetensors'):
+            elif identifier == 'fast' and os.path.isfile(ROOT_DIR + '/StableFast/checkpoints/model.safetensors') and torch.cuda.is_available():
                 item_layout.enabled = True
             else:
                 item_layout.enabled = False
 
         layout.separator()
-        if context.scene.my_props.model_type == 'lean':
-            layout.prop(context.scene.my_props, "enable_textures")
         if context.scene.my_props.model_type == 'fast':
-            layout.prop(context.scene.my_props, "remesh_type", expand=True)
-    
+            layout.label(text="Vertex Count")
+            layout.prop(context.scene.my_props, "vertex_simplification", expand=True)
+        
+        layout.separator()
+        layout.prop(context.scene.my_props, "enable_textures")
         layout.operator("tool.filebrowser", text="Open Image")
         if context.window_manager.input_image_path != "":
             img = bpy.data.images.load(context.window_manager.input_image_path, check_existing=True)
@@ -148,18 +154,22 @@ class Mesh_OT_Generate(DataStore, Operator):
         print('[SculptMate Logging] Working on ', img_name)
 
         try:
-            preprocessed, scale = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
+            if context.scene.my_props.model_type == 'lean':
+                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
+            elif context.scene.my_props.model_type == 'fast':
+                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.85, use_alpha=True)
+
         except Exception as e:
             self.report({"ERROR"}, 'Please view system console for details')
             print('[Preprocessing Error]', e)
             return {'CANCELLED'}
 
         if preprocessed is None:
-            context.window_manager.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find a person in the image."
+            context.window_manager.message = "Sorry, I am unable to work with this image, please try another one. Reasons for failure could include poor quality, or inability to find an object in the image."
             return {'CANCELLED'}
         
         # Run the generation on a different thread so Blender doesn't hang
-        thread = GenerationWorker(device, preprocessed, scale, img_name, context)
+        thread = GenerationWorker(device, preprocessed, img_name, context)
         thread.start()
 
         return {'FINISHED'}
@@ -167,10 +177,9 @@ class Mesh_OT_Generate(DataStore, Operator):
 
 class GenerationWorker(DataStore, threading.Thread):
 
-    def __init__(self, device, image, scale, name, context):
+    def __init__(self, device, image, name, context):
         self.device = device
         self.image = image
-        self.scale = scale
         self.img_name = name
         self.context = context
         threading.Thread.__init__(self)
@@ -182,9 +191,27 @@ class GenerationWorker(DataStore, threading.Thread):
 
         # Generate mesh based on selected model type
         t1 = time.time()
-        object_gen = TripoGenerator(self.device)
-        object_gen.initiate_model()
-        object_gen.generate_mesh(input_image=self.image, input_name=self.img_name, enable_texture=self.context.scene.my_props.enable_textures)
+        if self.context.scene.my_props.model_type == 'lean':
+            global trippo_generator
+            if trippo_generator is None:
+                trippo_generator = TripoGenerator(self.device)
+                trippo_generator.initiate_model()
+            trippo_generator.generate_mesh(
+                input_image=self.image, 
+                input_name=self.img_name, 
+                enable_texture=self.context.scene.my_props.enable_textures
+            )
+        elif self.context.scene.my_props.model_type == 'fast':
+            global fast_generator
+            if fast_generator is None:
+                fast_generator = Fast3DGenerator(self.device)
+                fast_generator.initiate_model()
+            fast_generator.generate_mesh(
+                input_image=self.image, 
+                input_name=self.img_name, 
+                vertex_simplification_factor=self.context.scene.my_props.vertex_simplification,
+                enable_texture=self.context.scene.my_props.enable_textures
+            )
         t2 = time.time()
         print('[SculptMate Logging] Generation Time (s):', str(t2 - t1 + 1))
 

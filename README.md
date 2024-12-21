@@ -6,9 +6,9 @@ SculptMate is a Blender add-on that simplifies the process of generating meshes.
 
 ## Features
 
-- Generate meshes of objects and humans from a single image.
+- Generate meshes of objects from a single image.
 - Create background assets with ease allowing you more time to work on the important parts of your render.
-- Automate a major part of the character generation pipeline by obtaining a base human mesh.
+- Get UV unwrapped maps and baked textures.
 
 ## Demo
 
@@ -16,18 +16,21 @@ SculptMate is a Blender add-on that simplifies the process of generating meshes.
 
 ## Installation
 
-1. Download the latest release zip file from the blue button name 'Code' on top of this page.
-2. In Blender, go to `Edit` > `Preferences` > `Add-Ons`.
-3. Click on `Install` and select the downloaded zip file.
-4. Enable the add-on by checking the checkbox next to its name.
-5. Inside the add-on in the preferences, you will have to install the required dependancies. You might have to start Blender with admin privileges for this step, depending on your Blender installation path.
+1. Download the latest release [zip file](https://github.com/shravan-d/SculptMate/archive/refs/tags/v0.5.zip) from the [Releases](https://github.com/shravan-d/SculptMate/releases) page.
+2. You might have to start Blender with admin privileges for this step, depending on your Blender installation path.
+3. In Blender, go to `Edit` > `Preferences` > `Add-Ons`.
+4. Click on `Install` and select the downloaded zip file.
+5. Enable the add-on by checking the checkbox next to its name.
+6. If you have a GPU in your system, check the 'Has GPU' box. This will speed up the generation process.
+7. Install the dependencies. 
+8. Get the the checkpoint files that are required for the generation process. The Pro model requires a GPU to run.
 ![Samples](assets/preferences.png)
 
 ## Usage
 
 1. Open Blender and head to the Render Properties Tab.
 2. Scroll down to find the SculptMate Panel.
-3. If you have the dependencies installed, you can select an image of the character you'd like to generate a mesh of.
+3. If you have the dependencies installed, you can select an image of the object you'd like to generate a mesh of.
 4. Click on Generate.
 
 ## Example Usage
@@ -44,6 +47,10 @@ This project utilizes the following third-party libraries:
 
 - **Library:** [TripoSR - A state-of-the-art open-source model for fast feedforward 3D reconstruction.](https://stability.ai/news/triposr-3d-generation)
    - **Author:** Tripo AI and Stability AI
+   - **Year:** 2024
+
+- **Library:** [Stable Fast 3D: Rapid 3D Asset Generation From Single Images.](https://stability.ai/news/introducing-stable-fast-3d)
+   - **Author:** Stability AI
    - **Year:** 2024
 
 # Troubleshooting

@@ -70,32 +70,12 @@ def image_preprocess_nosave(input_image, lower_contrast=True, rescale=True):
    return Image.fromarray((rgb * 255).astype(np.uint8)), scale
 
 
-def preprocess_image2(img_path, device):
-    from segment_anything import SamPredictor
-    input_raw = Image.open(img_path)
-    input_raw.thumbnail(image_size, Image.Resampling.LANCZOS)
-
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path=ROOT_DIR+"/checkpoints/yolov5s.pt", trust_repo=True) 
-    results = model(input_raw)
-    output = results.pandas().xyxy[0]
-    objects = output[np.logical_and(output['name'] == 'person', output['confidence'] > 0.8)]
-    try:
-        bbox = [int(objects.xmin.iloc[0]), int(objects.ymin.iloc[0]), int(objects.xmax.iloc[0]), int(objects.ymax.iloc[0])]
-    except IndexError:
-        print('Unable to find a person in the image, please try another one')
-        return None, -1
-    sam_model = get_sam_model(device)
-    sam_predictor = SamPredictor(sam_model)
-
-    image_sam = sam_out_nosave(sam_predictor, input_raw.convert("RGB"), bbox)
-
-    input_image, scale = image_preprocess_nosave(image_sam, lower_contrast=True, rescale=True)
-    return input_image, scale
-
-
-def preprocess_image(img_path, ratio=0.85):
+def preprocess_image(img_path, ratio=0.85, use_alpha=False):
     # os.environ['U2NET_PATH'] = ROOT_DIR+"/checkpoints/u2net.onnx" 
-    input_raw = Image.open(img_path)
+    if use_alpha:
+        input_raw = Image.open(img_path).convert("RGBA")
+    else:
+        input_raw = Image.open(img_path)
     input_raw = remove(input_raw)
 
     image = np.array(input_raw)
@@ -130,6 +110,9 @@ def preprocess_image(img_path, ratio=0.85):
         constant_values=((0, 0), (0, 0), (0, 0)),
     )
 
+    if use_alpha:
+        return Image.fromarray(new_image, mode="RGBA")
+
     input_image = Image.fromarray(new_image)
     input_image = np.array(new_image).astype(np.float32) / 255.0
 
@@ -139,7 +122,7 @@ def preprocess_image(img_path, ratio=0.85):
     input_image = input_image[:, :, :3] * input_image[:, :, 3:4] + (1 - input_image[:, :, 3:4]) * 0.5
     input_image = Image.fromarray((input_image * 255.0).astype(np.uint8))
     if input_image.size[0] < 250:
-        return None, -1
+        return None
     input_image = input_image.resize(image_size, Image.Resampling.LANCZOS)
     
-    return input_image, scale
+    return input_image
