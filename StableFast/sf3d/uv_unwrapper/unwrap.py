@@ -5,8 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from .unwrapper import assign_faces_uv_to_atlas_index
-
+import ctypes
+import numpy as np
+import os
 
 class Unwrapper(nn.Module):
     def __init__(self):
@@ -140,12 +141,38 @@ class Unwrapper(nn.Module):
         Returns:
             Integer[Tensor, "Nf"]: Atlas index
         """
-        return assign_faces_uv_to_atlas_index(
-            vertex_positions.cpu(),
-            triangle_idxs.cpu(),
-            face_uv.view(-1, 2).cpu(),
-            face_index.cpu(),
+        dll_path = os.path.join(os.path.dirname(__file__), "uv_unwrapper.dll")
+        unwrapper_dll = ctypes.CDLL(dll_path)
+
+        # Define the function signature
+        unwrapper_dll.assign_faces_uv_to_atlas_index.argtypes = [
+            ctypes.POINTER(ctypes.c_float), ctypes.c_size_t,  # vertices (n * 3)
+            ctypes.POINTER(ctypes.c_longlong), ctypes.c_size_t,   # indices (m * 3)
+            ctypes.POINTER(ctypes.c_float), # face_uv (m * 3 * 2)
+            ctypes.POINTER(ctypes.c_longlong),  # face_index (m)
+            ctypes.POINTER(ctypes.c_longlong)                    # output indices (m * 3)
+        ]
+        unwrapper_dll.assign_faces_uv_to_atlas_index.restype = None
+
+        nv = vertex_positions.size(0)
+        nf = triangle_idxs.size(0)
+
+        vertex_positions_numpy = vertex_positions.cpu().numpy().flatten()
+        triangle_idxs_numpy = triangle_idxs.cpu().numpy().flatten()
+        face_uv_numpy = face_uv.view(-1, 2).cpu().numpy().flatten()
+        face_index_numpy = face_index.cpu().numpy().flatten()
+
+        output_indices = np.zeros(nf, dtype=np.int64)
+
+        unwrapper_dll.assign_faces_uv_to_atlas_index(
+            vertex_positions_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), nv,
+            triangle_idxs_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_longlong)), nf,
+            face_uv_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            face_index_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_longlong)),
+            output_indices.ctypes.data_as(ctypes.POINTER(ctypes.c_longlong))
         )
+
+        return torch.from_numpy(output_indices).to(vertex_positions.device)
 
     def _find_slice_offset_and_scale(
         self, index: Tensor
@@ -484,7 +511,6 @@ class Unwrapper(nn.Module):
         div_x: Tensor,
         div_y: Tensor,
         island_padding: float,
-        device,
     ) -> Tensor:
         """
         Distribute the individual UVs in the atlas
@@ -509,14 +535,6 @@ class Unwrapper(nn.Module):
         )
 
         uc, vc = placed_uv.unbind(-1)
-        
-        uc = uc.to(device)
-        vc = vc.to(device)
-        offset_x = offset_x.to(device)
-        offset_y = offset_y.to(device)
-        div_x = div_x.to(device)
-        div_y = div_y.to(device)
-
         uc = uc / div_x[:, None] + offset_x[:, None]
         vc = vc / div_y[:, None] + offset_y[:, None]
 
@@ -628,7 +646,6 @@ class Unwrapper(nn.Module):
         vertex_normals: Tensor,
         triangle_idxs: Tensor,
         island_padding: float,
-        device,
     ) -> Tuple[Tensor, Tensor]:
         """
         Unwrap the mesh
@@ -664,7 +681,7 @@ class Unwrapper(nn.Module):
         )
 
         offset_x, offset_y, div_x, div_y = self._find_slice_offset_and_scale(
-            torch.from_numpy(assigned_atlas_index)
+            assigned_atlas_index
         )
 
         placed_uv = self._distribute_individual_uvs_in_atlas(
@@ -675,7 +692,6 @@ class Unwrapper(nn.Module):
             div_x,
             div_y,
             island_padding,
-            device
         )
 
         return self._get_unique_face_uv(placed_uv)

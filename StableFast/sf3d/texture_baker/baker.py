@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from .common import rasterize, interpolate
+import os
+import ctypes
+import numpy as np
 
 class TextureBaker(nn.Module):
     def __init__(self):
@@ -26,9 +28,33 @@ class TextureBaker(nn.Module):
         Returns:
             Tensor, bake_resolution bake_resolution 4, float: Rasterized map
         """
-        return rasterize(
-            uv, face_indices.to(torch.int32), bake_resolution, device=device
+        dll_path = os.path.join(os.path.dirname(__file__), "texture_baker.dll")
+        dll = ctypes.CDLL(dll_path)
+
+        dll.rasterize_cpu.argtypes = [
+            ctypes.POINTER(ctypes.c_float), ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_int), ctypes.c_size_t,
+            ctypes.c_longlong,
+            ctypes.POINTER(ctypes.c_float)
+        ]
+        dll.rasterize_cpu.restype = None
+        
+        nv = uv.size(0)
+        nf = face_indices.size(0)
+
+        uv_numpy = uv.cpu().numpy().flatten()
+        indices_numpy = face_indices.to(torch.int32).cpu().numpy().flatten()
+        rast_result = np.zeros((bake_resolution * bake_resolution, 4), dtype=np.float32).flatten()
+
+        dll.rasterize_cpu(
+            uv_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), nv,
+            indices_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_int)), nf,
+            bake_resolution,
+            rast_result.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         )
+        rast_result = rast_result.reshape(bake_resolution, bake_resolution, 4)
+
+        return torch.from_numpy(rast_result).to(device)
 
     def get_mask(self, rast: Tensor) -> Tensor:
         """
@@ -47,6 +73,7 @@ class TextureBaker(nn.Module):
         attr: Tensor,
         rast: Tensor,
         face_indices: Tensor,
+        bake_resolution: int,
         device
     ) -> Tensor:
         """
@@ -61,9 +88,34 @@ class TextureBaker(nn.Module):
         Returns:
             Tensor, bake_resolution bake_resolution 3, float: Interpolated attributes
         """
-        return interpolate(
-            attr, face_indices.to(torch.int32), rast, device=device
+        dll_path = os.path.join(os.path.dirname(__file__), "texture_baker.dll")
+        baker_dll = ctypes.CDLL(dll_path)
+
+        baker_dll.interpolate_cpu.argtypes = [
+            ctypes.POINTER(ctypes.c_float), ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_int), ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_float), ctypes.c_longlong,
+            ctypes.POINTER(ctypes.c_float)
+        ]
+        baker_dll.interpolate_cpu.restype = None
+        
+        nv = attr.size(0)
+        nf = face_indices.size(0)
+
+        attr_numpy = attr.cpu().numpy().flatten()
+        indices_numpy = face_indices.to(torch.int32).cpu().numpy().flatten()
+        rast_numpy = rast.cpu().numpy().flatten()
+        inter_result = np.zeros((bake_resolution * bake_resolution, 3), dtype=np.float32).flatten()
+
+        baker_dll.interpolate_cpu(
+            attr_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), nv,
+            indices_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_int)), nf,
+            rast_numpy.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), bake_resolution,
+            inter_result.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         )
+        inter_result = inter_result.reshape(bake_resolution, bake_resolution, 3)
+
+        return torch.from_numpy(inter_result).to(device)
 
     def forward(
         self,
@@ -86,4 +138,4 @@ class TextureBaker(nn.Module):
             Tensor, bake_resolution bake_resolution 3, float: Baked texture
         """
         rast = self.rasterize(uv, face_indices, bake_resolution, device)
-        return self.interpolate(attr, rast, face_indices, uv, device)
+        return self.interpolate(attr, rast, face_indices, uv, bake_resolution, device)
