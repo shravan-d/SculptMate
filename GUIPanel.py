@@ -157,7 +157,7 @@ class Mesh_OT_Generate(DataStore, Operator):
             if context.scene.my_props.model_type == 'lean':
                 preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.75)
             elif context.scene.my_props.model_type == 'fast':
-                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.85, alpha=True)
+                preprocessed = preprocess_image(img_path=context.window_manager.input_image_path, ratio=0.85, use_alpha=True)
 
         except Exception as e:
             self.report({"ERROR"}, 'Please view system console for details')

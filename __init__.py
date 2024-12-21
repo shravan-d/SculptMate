@@ -139,7 +139,7 @@ class DataStore:
         return True
     
     
-class Warning_PT_panel(bpy.types.Panel):
+class WARNING_PT_panel(bpy.types.Panel):
     bl_label = "SculptMate"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
@@ -329,11 +329,15 @@ class TorchReconWorker(threading.Thread):
 
     def run(self):
         self.context.scene.buttons_enabled = False
+        environ_copy = dict(os.environ)
+        environ_copy["PYTHONNOUSERSITE"] = "1"
         try:
-            environ_copy = dict(os.environ)
-            environ_copy["PYTHONNOUSERSITE"] = "1"
             subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torchvision", "torch"], check=True, env=environ_copy)
+        except (subprocess.CalledProcessError) as err:
+            pass
+        try:
             subprocess.run([sys.executable, "-m", "pip", "install", "torch==2.3.0", "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True, env=environ_copy)
+            import torch
         except (subprocess.CalledProcessError, ImportError) as err:
             print('[Installation Error]', err)
             self.context.scene.buttons_enabled = True
@@ -409,7 +413,7 @@ class MyPreferences(bpy.types.AddonPreferences):
         addon_updater_ops.update_settings_ui_condensed(self, context)
 
 
-preference_classes = (Warning_PT_panel,
+preference_classes = (WARNING_PT_panel,
                       Install_dependencies,
                       Download_Lean_Model,
                       Download_Fast_Model,
