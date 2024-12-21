@@ -54,7 +54,7 @@ class Mesh:
     @property
     def v_tex(self):
         if self._v_tex is None:
-            self.unwrap_uv(get_device())
+            self.unwrap_uv()
         return self._v_tex
 
     @property
@@ -239,11 +239,10 @@ class Mesh:
     @torch.no_grad()
     def unwrap_uv(
         self,
-        device,
         island_padding: float = 0.02,
     ) -> Mesh:
         uv, indices = self.unwrapper(
-            self.v_pos, self.v_nrm, self.t_pos_idx, island_padding, device
+            self.v_pos, self.v_nrm, self.t_pos_idx, island_padding
         )
 
         # Do store per vertex UVs.

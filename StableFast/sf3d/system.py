@@ -358,12 +358,12 @@ class SF3D(BaseModule):
                     elif remesh == "quad":
                         mesh = mesh.quad_remesh(quad_vertex_count=vertex_count)
 
+                    t3 = time.time()
+                    mesh.unwrap_uv()
+                    t4 = time.time()
+                    print('Unwrap Time (s):', str(t4 - t3))
+
                     if enable_texture:
-                        t3 = time.time()
-                        mesh.unwrap_uv(self.device)
-                        t4 = time.time()
-                        print('Unwrap Time (s):', str(t4 - t3))
-                        
                         # Build textures
                         rast = self.baker.rasterize(
                             mesh.v_tex, mesh.t_pos_idx, bake_resolution, self.device
@@ -374,6 +374,7 @@ class SF3D(BaseModule):
                             mesh.v_pos,
                             rast,
                             mesh.t_pos_idx,
+                            bake_resolution,
                             self.device
                         )
                         gb_pos = pos_bake[bake_mask]
@@ -387,6 +388,7 @@ class SF3D(BaseModule):
                             mesh.v_nrm,
                             rast,
                             mesh.t_pos_idx,
+                            bake_resolution,
                             self.device
                         )
 
@@ -430,6 +432,7 @@ class SF3D(BaseModule):
                                         mesh.v_tng,
                                         rast,
                                         mesh.t_pos_idx,
+                                        bake_resolution,
                                         self.device
                                     )
                                     gb_tng = tng[bake_mask]
@@ -502,7 +505,7 @@ class SF3D(BaseModule):
                             bump_tex = None
                         
                         t5 = time.time()
-                        print('Baking Time (s):', str(t5 - t4 + 1))
+                        print('Baking Time (s):', str(t5 - t4))
 
                         verts_np = convert_data(mesh.v_pos)
                         faces = convert_data(mesh.t_pos_idx)
@@ -565,17 +568,21 @@ class SF3D(BaseModule):
         bsdf = nodes.new(type="ShaderNodeBsdfPrincipled")
         bsdf.location = (0, 0)
         output = nodes.new(type="ShaderNodeOutputMaterial")
-        output.location = (400, 0)
+        # output.location = (400, 0)
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
         # Set base color texture
         if mesh['basecolor_tex']:
             tex_image = nodes.new('ShaderNodeTexImage')
             image_data = np.array(mesh['basecolor_tex'])
+            
+            # Flip the texture vertically
+            image_data = np.flip(image_data, axis=0)
+
             blender_image = bpy.data.images.new("BaseColor", width=mesh['basecolor_tex'].width, height=mesh['basecolor_tex'].height)
             blender_image.pixels = image_data.flatten() / 255.0
             tex_image.image = blender_image
-            tex_image.location = (-300, 200)
+            # tex_image.location = (-300, 200)
             links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
 
         # Set roughness and metallic factors
@@ -588,13 +595,14 @@ class SF3D(BaseModule):
         if mesh['bump_tex']:
             normal_map = nodes.new('ShaderNodeTexImage')
             image_data = np.array(mesh['bump_tex'])
+            image_data = np.flip(image_data, axis=0)
             blender_image = bpy.data.images.new("Bump", width=mesh['bump_tex'].width, height=mesh['bump_tex'].height)
             blender_image.pixels = image_data.flatten() / 255.0
             normal_map.image = blender_image
             normal_map.image.colorspace_settings.name = 'Non-Color'
-            normal_map.location = (-300, -200)
+            # normal_map.location = (-300, -200)
 
             normal_map_node = nodes.new('ShaderNodeNormalMap')
-            normal_map_node.location = (-100, -200)
+            # normal_map_node.location = (-100, -200)
             links.new(normal_map.outputs['Color'], normal_map_node.inputs['Color'])
             links.new(normal_map_node.outputs['Normal'], bsdf.inputs['Normal'])
