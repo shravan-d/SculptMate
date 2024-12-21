@@ -16,7 +16,7 @@ SculptMate is a Blender add-on that simplifies the process of generating meshes.
 
 ## Installation
 
-1. Download the latest release [zip file](https://github.com/shravan-d/SculptMate/archive/refs/tags/v0.5.zip) from the [Releases](https://github.com/shravan-d/SculptMate/releases) page.
+1. Download the latest release [zip file](https://github.com/shravan-d/SculptMate/releases/download/v0.5/SculptMate.zip) from the [Releases](https://github.com/shravan-d/SculptMate/releases) page.
 2. You might have to start Blender with admin privileges for this step, depending on your Blender installation path.
 3. In Blender, go to `Edit` > `Preferences` > `Add-Ons`.
 4. Click on `Install` and select the downloaded zip file.
